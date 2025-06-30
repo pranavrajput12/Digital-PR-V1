@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SourceBottle Categories</title>
+  <style>
+    /* Spin Animation */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .spin {
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    
+    /* Debug Panel Styles */
+    #debug-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1e1e2d;
+      color: #e1e1e1;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      border-top: 2px solid #4CAF50;
+      z-index: 9999;
+      max-height: 200px;
+      overflow-y: auto;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+    }
+    
+    .debug-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 12px;
+      background: #2d2d3d;
+      border-bottom: 1px solid #3a3a4a;
+      font-weight: bold;
+    }
+    
+    .debug-close-btn {
+      background: transparent;
+      border: none;
+      color: #e1e1e1;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 6px;
+      line-height: 1;
+      border-radius: 3px;
+    }
+    
+    .debug-close-btn:hover {
+      background: #4a4a5a;
+    }
+    
+    .debug-content {
+      padding: 8px 12px;
+    }
+    
+    .debug-content > div {
+      margin: 4px 0;
+      line-height: 1.4;
+    }
+    
+    .debug-actions {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #3a3a4a;
+      display: flex;
+      gap: 6px;
+    }
+    
+    .debug-btn {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .debug-btn:hover {
+      background: #3e8e41;
+    }
+    
+    .debug-btn-danger {
+      background: #dc3545;
+    }
+    
+    .debug-btn-danger:hover {
+      background: #c82333;
+    }
+    
+    /* Main Styles */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      width: 360px;
+      padding: 10px;
+      background-color: #f5f5f7;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+      font-size: 18px;
+    }
+    
+    .category-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    
+    .category-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px 10px;
+      cursor: pointer;
+      font-weight: 500;
+      color: #333;
+      text-align: center;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .category-button:hover {
+      background-color: #f0f0f0;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .category-button.business {
+      border-left: 4px solid #4CAF50;
+    }
+    
+    .category-button.environment {
+      border-left: 4px solid #8BC34A;
+    }
+    
+    .category-button.general {
+      border-left: 4px solid #9E9E9E;
+    }
+    
+    .category-button.health {
+      border-left: 4px solid #F44336;
+    }
+    
+    .category-button.lifestyle {
+      border-left: 4px solid #FF9800;
+    }
+    
+    .category-button.education {
+      border-left: 4px solid #2196F3;
+    }
+    
+    .category-button.marketing {
+      border-left: 4px solid #9C27B0;
+    }
+    
+    .category-button.services {
+      border-left: 4px solid #3F51B5;
+    }
+    
+    .category-button.property {
+      border-left: 4px solid #E91E63;
+    }
+    
+    .category-button.technology {
+      border-left: 4px solid #00BCD4;
+    }
+    
+    .category-button.travel {
+      border-left: 4px solid #FFC107;
+    }
+    
+    .action-area {
+      margin-top: 15px;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .action-button {
+      flex: 1;
+      margin: 0 5px;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background-color: #4361ee;
+      color: white;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .action-button:hover {
+      background-color: #3b4fd3;
+    }
+    
+    .action-button.secondary {
+      background-color: #6c757d;
+    }
+    
+    .action-button.secondary:hover {
+      background-color: #5a6268;
+    }
+    
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      text-align: center;
+      border-radius: 8px;
+      font-size: 14px;
+      background-color: #e8f4ff;
+      color: #0366d6;
+      display: none;
+    }
+    /* Platform navigation styles */
+    .platform-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+    
+    .platform-button {
+      flex: 1;
+      margin: 0 5px;
+      padding: 8px 6px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      color: white;
+    }
+    
+    .platform-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .platform-button.sourcebottle {
+      background-color: #4b6cb7;
+    }
+    
+    .platform-button.sourcebottle:hover {
+      background-color: #3a57a9;
+    }
+    
+    .platform-button.featured {
+      background-color: #ff9800;
+    }
+    
+    .platform-button.featured:hover {
+      background-color: #e88c00;
+    }
+    
+    .platform-button.qwoted {
+      background-color: #009688;
+    }
+    
+    .platform-button.qwoted:hover {
+      background-color: #00877a;
+    }
+    
+    .platform-button span {
+      margin-left: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Select a SourceBottle Category to Scrape</h1>
+  
+  <!-- Platform Navigation Buttons -->
+  <div class="platform-buttons">
+    <a href="https://www.sourcebottle.com/categories.asp" target="_blank" class="platform-button sourcebottle">
+      <span>📢</span>
+      <span>SourceBottle</span>
+    </a>
+    <a href="https://featured.com/experts/questions" target="_blank" class="platform-button featured">
+      <span>🔍</span>
+      <span>Featured</span>
+    </a>
+    <a href="https://app.qwoted.com/source_requests" target="_blank" class="platform-button qwoted">
+      <span>💬</span>
+      <span>Qwoted</span>
+    </a>
+  </div>
+  
+  <div class="category-grid">
+    <div class="category-button business" data-iid="61">Business & Finance</div>
+    <div class="category-button environment" data-iid="62">Environment</div>
+    <div class="category-button general" data-iid="63">General</div>
+    <div class="category-button health" data-iid="64">Health & Wellbeing</div>
+    <div class="category-button lifestyle" data-iid="65">Lifestyle, Food & Fashion</div>
+    <div class="category-button education" data-iid="66">Parenting & Education</div>
+    <div class="category-button marketing" data-iid="69">PR, Media & Marketing</div>
+    <div class="category-button services" data-iid="67">Professional Services</div>
+    <div class="category-button property" data-iid="68">Property</div>
+    <div class="category-button technology" data-iid="70">Technology</div>
+    <div class="category-button travel" data-iid="71">Travel & Leisure</div>
+  </div>
+  
+  <div class="action-area">
+    <button class="action-button" id="view-opportunities">View Opportunities</button>
+    <button class="action-button secondary" id="export-csv">Export CSV</button>
+  </div>
+  
+  <div class="action-area" style="margin-top: 10px;">
+    <button class="action-button" id="send-to-sheets" style="background-color: #0F9D58;">Send to Google Sheets</button>
+    <button class="action-button" id="open-settings" style="background-color: #4285F4;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 5px;"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/></svg>Settings</button>
+  </div>
+  
+  <div class="status" id="status-message"></div>
+  
+  <!-- Scraping Progress and Status Indicators -->
+  <div id="scraping-progress" style="margin-top: 15px; display: none;">
+    <div style="background-color: #e8f4ff; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div>
+          <span id="statusIndicator" class="status-indicator" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ccc; margin-right: 5px;"></span>
+          <span id="status">Ready</span>
+        </div>
+        <div id="pageInfo" style="font-weight: bold;">Page 1 of 1</div>
+      </div>
+      
+      <div class="progress-container" style="height: 8px; background-color: #e2e2e2; border-radius: 4px; overflow: hidden; margin-bottom: 10px;">
+        <div class="progress-bar" style="height: 100%; width: 0%; background-color: #4361ee; transition: width 0.3s ease;"></div>
+      </div>
+      
+      <div style="text-align: center;">
+        <button id="nextPageBtn" class="action-button" style="display: none; max-width: 150px; margin: 0 auto;">Next Page</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Container for displaying opportunities -->
+  <div id="opportunities-container" style="display: none; margin-top: 20px;">
+    <h2>Opportunities</h2>
+    <div id="count-display" style="text-align: center; margin-bottom: 10px;"></div>
+    <div id="opportunities-list"></div>
+  </div>
+  
+  <script src="simple-popup.js" defer></script>
+</body>
+</html>

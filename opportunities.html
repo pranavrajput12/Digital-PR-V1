@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Platform PR Opportunities Tracker</title>
+  <!-- Use local styles only - no external scripts or styles (CSP restriction) -->
+  <link rel="stylesheet" href="styles/opportunities.css">
+  <link rel="stylesheet" href="modules/scrapers/styles.css">
+  <style>
+    :root {
+      --color-primary: #4361ee;
+      --color-primary-hover: #3a50ce;
+      --color-success: #04aa6d;
+      --color-danger: #e63946;
+      --color-warning: #ff9800;
+      --color-text: #333;
+      --color-text-secondary: #6c757d;
+      --color-border: #dee2e6;
+      --color-light: #f8f9fa;
+      --color-white: #fff;
+      --color-bg: #f5f5f7;
+      --color-bg-secondary: #e9ecef;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+      --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+      --transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    }
+    
+    /* Toast Notification Styles */
+    .toast-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--color-success);
+      color: var(--color-white);
+      padding: 12px 24px;
+      border-radius: 4px;
+      box-shadow: var(--shadow-lg);
+      z-index: 9999;
+      opacity: 0;
+      transform: translateX(120%);
+      transition: opacity 0.3s, transform 0.3s;
+      max-width: 350px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .toast-notification.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    
+    .toast-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    .toast-close {
+      background: none;
+      border: none;
+      color: var(--color-white);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 0 0 15px;
+      line-height: 1;
+      opacity: 0.8;
+    }
+    
+    .toast-close:hover {
+      opacity: 1;
+    }
+    
+    .toast-message {
+      flex: 1;
+    }
+    
+    /* Hide audio element */
+    #notification-sound {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      height: 0;
+      width: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      transition: var(--transition);
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--color-primary);
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 15px;
+    }
+    
+    .header-btn {
+      background-color: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .header-btn:hover {
+      background-color: var(--color-light);
+    }
+    
+    .header-btn.active {
+      background-color: var(--color-primary);
+      color: var(--color-white);
+      border-color: var(--color-primary);
+    }
+    
+    .advanced-filters {
+      background-color: var(--color-white);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    
+    .filters-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .filters-title h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .filter-toggle {
+      background: none;
+      border: none;
+      color: var(--color-primary);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .filter-group {
+      flex: 1;
+      min-width: 180px;
+    }
+    
+    .filter-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .filter-group select,
+    .filter-group input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      background-color: var(--color-white);
+      font-size: 14px;
+    }
+    
+    .filter-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .btn {
+      padding: 8px 15px;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: var(--transition);
+      border: none;
+    }
+    
+    .btn-primary {
+      background-color: var(--color-primary);
+      color: var(--color-white);
+    }
+    
+    .btn-primary:hover {
+      background-color: var(--color-primary-hover);
+    }
+    
+    .btn-secondary {
+      background-color: var(--color-light);
+      color: var(--color-text);
+      border: 1px solid var(--color-border);
+    }
+    
+    .btn-secondary:hover {
+      background-color: var(--color-bg-secondary);
+    }
+    
+    .quick-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    
+    .quick-filters label {
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 5px;
+    }
+    
+    .filter-button {
+      background-color: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: 20px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: var(--transition);
+    }
+    
+    .filter-button:hover {
+      background-color: var(--color-light);
+    }
+    
+    .filter-button.active {
+      background-color: var(--color-primary);
+      color: var(--color-white);
+      border-color: var(--color-primary);
+    }
+    
+    .search-container {
+      position: relative;
+      flex: 1;
+      max-width: 300px;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 8px 10px 8px 35px;
+      border: 1px solid var(--color-border);
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--color-text-secondary);
+    }
+    
+    .opportunities {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .list-view .opportunities {
+      grid-template-columns: 1fr;
+    }
+    
+    .grid-view .opportunity-card {
+      flex-direction: column;
+    }
+    
+    .grid-view .opportunity-card .card-header {
+      border-bottom: 1px solid var(--color-border);
+    }
+    
+    .opportunity-card {
+      background-color: var(--color-white);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .opportunity-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    .card-header {
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+      margin-bottom: 5px;
+      color: var(--color-text);
+    }
+    
+    .card-rating {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+    
+    .rating-star {
+      color: #ffc107;
+    }
+    
+    .card-category {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 15px;
+      font-weight: 500;
+      background-color: var(--color-bg-secondary);
+      color: var(--color-text);
+      white-space: nowrap;
+    }
+    
+    /* Category styling */
+    .business-finance {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    
+    .environment {
+      background-color: #d1e7dd;
+      color: #0f5132;
+    }
+    
+    .technology {
+      background-color: #cfe2ff;
+      color: #084298;
+    }
+    
+    .health-wellbeing {
+      background-color: #f8d7da;
+      color: #842029;
+    }
+    
+    .lifestyle-food-fashion {
+      background-color: #fff3cd;
+      color: #664d03;
+    }
+    
+    .parenting-education {
+      background-color: #d1ecf1;
+      color: #055160;
+    }
+    
+    .pr-media-marketing {
+      background-color: #e2d9f3;
+      color: #5a287d;
+    }
+    
+    .professional-services {
+      background-color: #d8d8f8;
+      color: #2c3473;
+    }
+    
+    .property {
+      background-color: #f5c2c7;
+      color: #842029;
+    }
+    
+    .travel-leisure {
+      background-color: #ffe5d0;
+      color: #883c00;
+    }
+    
+    .general {
+      background-color: #e9ecef;
+      color: #495057;
+    }
+    
+    .card-body {
+      padding: 15px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .card-description {
+      margin-top: 0;
+      margin-bottom: 15px;
+      line-height: 1.5;
+      color: var(--color-text);
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      -webkit-box-orient: vertical;
+      box-orient: vertical;
+      flex: 1;
+    }
+    
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 15px;
+    }
+    
+    .card-tag {
+      background-color: var(--color-light);
+      color: var(--color-text-secondary);
+      border-radius: 12px;
+      padding: 3px 8px;
+      font-size: 12px;
+    }
+    
+    .card-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: auto;
+    }
+    
+    .action-button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: var(--transition);
+      font-size: 14px;
+    }
+    
+    .view-button {
+      background-color: var(--color-primary);
+      color: var(--color-white);
+    }
+    
+    .view-button:hover {
+      background-color: var(--color-primary-hover);
+    }
+    
+    .save-button {
+      background-color: var(--color-white);
+      color: var(--color-primary);
+      border: 1px solid var(--color-primary);
+    }
+    
+    .save-button:hover {
+      background-color: var(--color-light);
+    }
+    
+    .no-opportunities {
+      text-align: center;
+      padding: 50px;
+      color: var(--color-text-secondary);
+      font-size: 18px;
+      grid-column: 1 / -1;
+    }
+    
+    .relevance-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: var(--color-primary);
+      color: var(--color-white);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .relevance-badge.high {
+      background-color: var(--color-success);
+    }
+    
+    .relevance-badge.medium {
+      background-color: var(--color-warning);
+    }
+    
+    .relevance-badge.low {
+      background-color: var(--color-danger);
+    }
+    
+    /* Toggle switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 20px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: var(--color-primary);
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    
+    .dark-mode-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: 10px;
+    }
+    
+    .dark-mode-label {
+      font-size: 14px;
+    }
+    
+    /* Dark mode */
+    body.dark-mode {
+      --color-text: #f5f5f5;
+      --color-text-secondary: #aaaaaa;
+      --color-bg: #1a1a1a;
+      --color-bg-secondary: #2c2c2c;
+      --color-white: #2a2a2a;
+      --color-light: #333333;
+      --color-border: #444444;
+    }
+    
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 30px 0 20px;
+      gap: 5px;
+    }
+    
+    .pagination-button {
+      background-color: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .pagination-button:hover:not(.active) {
+      background-color: var(--color-light);
+    }
+    
+    .pagination-button.active {
+      background-color: var(--color-primary);
+      color: var(--color-white);
+      border-color: var(--color-primary);
+    }
+    
+    .pagination-button.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    /* Add styling for AI notifications and button states */
+    .ai-notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: white;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      z-index: 1000;
+      max-width: 90%;
+    }
+    
+    .ai-notification.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    
+    .ai-notification.success {
+      background-color: var(--color-success);
+    }
+    
+    .ai-notification.error {
+      background-color: var(--color-danger);
+    }
+    
+    .ai-notification.warning {
+      background-color: var(--color-warning);
+      color: #333;
+    }
+    
+    .ai-notification a {
+      color: inherit;
+      text-decoration: underline;
+    }
+    
+    /* AI button states */
+    #analyze-ai-btn.processing {
+      background-color: var(--color-warning);
+      animation: pulse 1.5s infinite;
+    }
+    
+    #analyze-ai-btn.success {
+      background-color: var(--color-success);
+    }
+    
+    #analyze-ai-btn.error {
+      background-color: var(--color-danger);
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    
+    /* Enhanced AI button styling */
+    #enhanced-ai-btn {
+      background-color: #8338ec;
+      color: white;
+      border-color: #7209b7;
+    }
+    
+    #enhanced-ai-btn:hover {
+      background-color: #7209b7;
+    }
+    
+    #enhanced-ai-btn.processing {
+      animation: pulse 1.5s infinite;
+    }
+    
+    /* Enhance AI button in the analysis modal */
+    .analysis-actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    
+    /* Style for AI-generated keywords */
+    .ai-keyword {
+      display: inline-block;
+      background-color: #e9ecef;
+      color: #495057;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-right: 5px;
+      margin-bottom: 5px;
+    }
+    
+    /* Sentiment tag styles */
+    .sentiment-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      border-radius: 12px;
+      padding: 2px 8px;
+      margin-left: 8px;
+    }
+    
+    .sentiment-tag.positive {
+      background-color: rgba(40, 167, 69, 0.15);
+      color: #28a745;
+    }
+    
+    .sentiment-tag.negative {
+      background-color: rgba(220, 53, 69, 0.15);
+      color: #dc3545;
+    }
+    
+    .sentiment-tag.neutral {
+      background-color: rgba(108, 117, 125, 0.15);
+      color: #6c757d;
+    }
+    
+    .sentiment-tag.mixed {
+      background-color: rgba(253, 126, 20, 0.15);
+      color: #fd7e14;
+    }
+    
+    .sentiment-tag.very_positive {
+      background-color: rgba(32, 201, 151, 0.15);
+      color: #20c997;
+    }
+    
+    .sentiment-tag.very_negative {
+      background-color: rgba(220, 53, 69, 0.15);
+      color: #dc3545;
+    }
+    
+    /* Sentiment display styles for modal */
+    .sentiment-display {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .sentiment-display.positive {
+      border-left: 4px solid #28a745;
+    }
+    
+    .sentiment-display.negative {
+      border-left: 4px solid #dc3545;
+    }
+    
+    .sentiment-display.neutral {
+      border-left: 4px solid #6c757d;
+    }
+    
+    .sentiment-display.mixed {
+      border-left: 4px solid #fd7e14;
+    }
+    
+    .sentiment-display.very_positive {
+      border-left: 4px solid #20c997;
+    }
+    
+    .sentiment-display.very_negative {
+      border-left: 4px solid #dc3545;
+    }
+    
+    .sentiment-bar {
+      height: 24px;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    
+    .sentiment-fill {
+      height: 100%;
+      transition: width 0.5s ease;
+    }
+    
+    .sentiment-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-weight: bold;
+      text-shadow: 0 0 2px rgba(0,0,0,0.5);
+      font-size: 12px;
+    }
+    
+    .sentiment-indicators {
+      margin-top: 12px;
+    }
+    
+    .indicator-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    
+    .indicator-tag {
+      background-color: #e9ecef;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      color: #495057;
+    }
+    
+    /* Sentiment section styles */
+    .sentiment-section {
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .sentiment-section.positive {
+      background-color: rgba(40, 167, 69, 0.1);
+    }
+    
+    .sentiment-section.negative {
+      background-color: rgba(220, 53, 69, 0.1);
+    }
+    
+    .sentiment-section.neutral {
+      background-color: rgba(108, 117, 125, 0.1);
+    }
+    
+    .sentiment-section.mixed {
+      background-color: rgba(253, 126, 20, 0.1);
+    }
+    
+    .sentiment-section.very_positive {
+      background-color: rgba(32, 201, 151, 0.1);
+    }
+    
+    .sentiment-section.very_negative {
+      background-color: rgba(220, 53, 69, 0.1);
+    }
+    
+    /* AI sentiment badge in header */
+    .ai-sentiment {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+      margin-left: 8px;
+    }
+    
+    .ai-sentiment.positive {
+      background-color: #28a745;
+    }
+    
+    .ai-sentiment.negative {
+      background-color: #dc3545;
+    }
+    
+    .ai-sentiment.neutral {
+      background-color: #6c757d;
+    }
+    
+    .ai-sentiment.mixed {
+      background-color: #fd7e14;
+    }
+    
+    .ai-sentiment.very_positive {
+      background-color: #20c997;
+    }
+    
+    .ai-sentiment.very_negative {
+      background-color: #dc3545;
+    }
+    
+    /* Make relevance badges more noticeable */
+    .relevance-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+      margin-left: 8px;
+    }
+    
+    .relevance-badge.high {
+      background-color: var(--color-success);
+    }
+    
+    .relevance-badge.medium {
+      background-color: var(--color-warning);
+      color: #333;
+    }
+    
+    .relevance-badge.low {
+      background-color: var(--color-danger);
+    }
+    
+    /* Style for AI-generated keywords */
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 10px;
+    }
+    
+    .card-tag {
+      background-color: var(--color-light);
+      border: 1px solid var(--color-border);
+      border-radius: 14px;
+      padding: 3px 8px;
+      font-size: 11px;
+      color: var(--color-text-secondary);
+    }
+    
+    .dark-mode .card-tag {
+      background-color: #333;
+    }
+    
+    /* Enhanced Analysis Modal Styles */
+    .enhanced-modal-content {
+      max-width: 800px;
+      width: 90%;
+      max-height: 90vh;
+    }
+    
+    .enhanced-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .analysis-section {
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background-color: var(--color-light);
+      border-bottom: 1px solid var(--color-border);
+      cursor: pointer;
+    }
+    
+    .dark-mode .section-header {
+      background-color: #333;
+      border-color: #444;
+    }
+    
+    .section-header h3 {
+      margin: 0;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .section-toggle {
+      font-size: 12px;
+      transition: transform 0.3s ease;
+    }
+    
+    .section-toggle.collapsed {
+      transform: rotate(-90deg);
+    }
+    
+    .section-content {
+      padding: 16px;
+      background-color: white;
+    }
+    
+    .dark-mode .section-content {
+      background-color: #222;
+    }
+    
+    /* Pitch Template Styles */
+    .pitch-template {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .pitch-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .pitch-field label {
+      font-weight: bold;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+    
+    .pitch-field .content {
+      padding: 12px;
+      background-color: var(--color-light);
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .dark-mode .pitch-field .content {
+      background-color: #333;
+    }
+    
+    .key-points-list {
+      margin: 0;
+      padding-left: 24px;
+    }
+    
+    /* Competitive Analysis Styles */
+    .competitive-analysis {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .analysis-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .analysis-field label {
+      font-weight: bold;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+    
+    .analysis-list {
+      margin: 0;
+      padding-left: 24px;
+    }
+    
+    .approach-box {
+      padding: 12px;
+      background-color: var(--color-light);
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .dark-mode .approach-box {
+      background-color: #333;
+    }
+    
+    /* Actionable Summary Styles */
+    .actionable-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .summary-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .summary-field label {
+      font-weight: bold;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+    
+    .one-sentence-summary {
+      padding: 12px;
+      background-color: var(--color-light);
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.5;
+      font-weight: 500;
+    }
+    
+    .dark-mode .one-sentence-summary {
+      background-color: #333;
+    }
+    
+    .criteria-list,
+    .action-items-list,
+    .resources-list {
+      margin: 0;
+      padding-left: 24px;
+    }
+    
+    .action-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    
+    .action-timeframe {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      background-color: var(--color-light);
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+    
+    .dark-mode .action-timeframe {
+      background-color: #333;
+    }
+    
+    .copy-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background-color: var(--color-light);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      margin-top: 8px;
+      align-self: flex-start;
+    }
+    
+    .copy-button:hover {
+      background-color: var(--color-bg-secondary);
+    }
+    
+    .dark-mode .copy-button {
+      background-color: #333;
+      border-color: #444;
+    }
+    
+    .dark-mode .copy-button:hover {
+      background-color: #444;
+    }
+    
+    .dark-mode .card-tag {
+      background-color: #333;
+      border-color: #555;
+      color: #ddd;
+    }
+    
+    @media (max-width: 768px) {
+      .filter-row {
+        flex-direction: column;
+      }
+      
+      .filter-group {
+        width: 100%;
+      }
+      
+      .card-header {
+        flex-direction: column;
+      }
+      
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      .opportunities {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+  <div class="container mx-auto px-4 py-6">
+    <div class="header">
+      <div class="header-title">
+        <h1>Multi-Platform PR Opportunities</h1>
+        <p class="subtitle">Track and analyze PR opportunities across SourceBottle, Featured.com, and Qwoted</p>
+      </div>
+      <button id="test-notification-btn" style="margin-left: auto; padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+        Test Notification
+      </button>
+      
+      <div class="header-controls">
+        <div class="ai-toggle" title="Enable/Disable AI">
+          <button class="ai-toggle-btn" id="enable-ai-btn">⚡ Enable AI</button>
+          <label class="switch">
+            <input type="checkbox" id="ai-enabled" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+    
+    <div class="search-bar" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+      <div class="search-input-wrapper" style="position: relative; flex: 1; max-width: 300px; min-width: 200px;">
+        <span class="search-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);">🔍</span>
+        <input type="text" id="search-input" class="search-input" style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid var(--color-border); border-radius: 20px; font-size: 14px;" placeholder="Search opportunities...">
+      </div>
+      
+      <div class="filter-group" style="min-width: 150px; margin: 0;">
+        <select id="ai-priority-filter" class="sort-select" style="padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; width: 100%;">
+          <option value="all">All Priorities</option>
+          <option value="high">High Priority</option>
+          <option value="medium">Medium Priority</option>
+          <option value="low">Low Priority</option>
+        </select>
+      </div>
+      
+      <div class="filter-group" style="min-width: 150px; margin: 0;">
+        <select id="source-filter" class="sort-select" style="padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; width: 100%;">
+          <option value="all">All Sources</option>
+          <option value="SourceBottle">SourceBottle</option>
+          <option value="Featured">Featured.com</option>
+          <option value="Qwoted">Qwoted</option>
+        </select>
+      </div>
+      
+      
+      <div style="display: flex; gap: 10px; flex-wrap: nowrap;">
+        <button id="analyze-ai-btn" class="header-btn" style="background-color: var(--color-primary); color: white; border: 1px solid var(--color-primary); border-radius: 4px; padding: 8px 12px; font-size: 14px; display: flex; align-items: center; gap: 5px; cursor: pointer;" title="Analyze with AI">
+          <span id="ai-icon">🤖</span>
+          <span id="ai-text">Analyze with AI</span>
+        </button>
+        
+        <button id="settings-btn" class="header-btn" style="background-color: var(--color-white); border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 12px; font-size: 14px; display: flex; align-items: center; gap: 5px; cursor: pointer;" title="Azure OpenAI Settings">
+          <span>⚙️</span>
+          <span>Settings</span>
+        </button>
+        
+        <button id="toggle-view-btn" class="header-btn" style="background-color: var(--color-white); border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 12px; font-size: 14px; display: flex; align-items: center; gap: 5px; cursor: pointer;" title="Toggle View">
+          <span id="view-icon">📊</span>
+          <span id="view-text">Grid View</span>
+        </button>
+        
+        <div class="dark-mode-toggle" style="display: flex; align-items: center; gap: 5px;" title="Toggle Dark Mode">
+          <span class="dark-mode-label">🌙</span>
+          <label class="switch" style="position: relative; display: inline-block; width: 40px; height: 20px;">
+            <input type="checkbox" id="dark-mode-toggle" style="opacity: 0; width: 0; height: 0;">
+            <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px;"></span>
+          </label>
+        </div>
+      </div>
+      
+      <!-- Platform Toggle Buttons -->
+      <div class="platform-toggles" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; justify-content: center;">
+        <div class="platform-toggle-group">
+          <label class="platform-toggle-label">Platform Filters:</label>
+          <div class="platform-toggle-buttons">
+            <button id="toggle-sourcebottle" class="platform-toggle-button active" data-platform="SourceBottle" style="display: flex; align-items: center; gap: 5px; border: 1px solid #4b6cb7; padding: 6px 12px; border-radius: 4px; font-weight: 500; color: white; background-color: #4b6cb7;">
+              <span style="font-size: 16px;">📢</span>
+              <span>SourceBottle</span>
+            </button>
+            <button id="toggle-featured" class="platform-toggle-button active" data-platform="Featured" style="display: flex; align-items: center; gap: 5px; border: 1px solid #ff9800; padding: 6px 12px; border-radius: 4px; font-weight: 500; color: white; background-color: #ff9800;">
+              <span style="font-size: 16px;">🔍</span>
+              <span>Featured.com</span>
+            </button>
+            <button id="toggle-qwoted" class="platform-toggle-button active" data-platform="Qwoted" style="display: flex; align-items: center; gap: 5px; border: 1px solid #009688; padding: 6px 12px; border-radius: 4px; font-weight: 500; color: white; background-color: #009688;">
+              <span style="font-size: 16px;">💬</span>
+              <span>Qwoted</span>
+            </button>
+            <button id="clear-all-btn" style="display: flex; align-items: center; gap: 5px; border: 1px solid #dc3545; padding: 6px 12px; border-radius: 4px; font-weight: 500; color: white; background-color: #dc3545; margin-left: 20px;">
+              <span style="font-size: 16px;">🗑️</span>
+              <span>Clear All</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Scrape buttons removed as requested -->
+      </div>
+    </div>
+    
+    <div class="stats-container">
+      <div class="stat">
+        <span class="stat-value" id="total-count">0</span>
+        <span class="stat-label">Total</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="analyzed-count">0</span>
+        <span class="stat-label">AI Analyzed</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="high-priority-count">0</span>
+        <span class="stat-label">High Priority</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="high-relevance-count">0</span>
+        <span class="stat-label">High Relevance</span>
+      </div>
+    </div>
+    <div class="quick-filters">
+      <label>Categories:</label>
+      <div id="category-filters">
+        <button class="filter-button active" data-category="all">All Categories</button>
+        <!-- Source and category filters will be added here by JavaScript -->
+      </div>
+    </div>
+    
+    <!-- Stats are now shown in the stats-container above -->
+    
+    <!-- Loading State -->
+    <div id="loading-state" class="hidden flex flex-col items-center justify-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+      <p class="text-gray-600 dark:text-gray-400" id="loading-text">Loading opportunities...</p>
+    </div>
+    
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden flex flex-col items-center justify-center py-16 px-4 text-center">
+      <i class="fas fa-inbox text-5xl text-gray-300 mb-4"></i>
+      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">No opportunities found</h3>
+      <p class="text-gray-500 dark:text-gray-400 max-w-md">
+        No opportunities match your current filters. Try adjusting your search or check back later.
+      </p>
+    </div>
+    
+    <!-- Opportunities Grid -->
+    <div id="opportunities-container" class="opportunities">
+      <!-- Opportunities will be loaded here -->
+    </div>
+    
+    <!-- Pagination -->
+    <div id="pagination" class="mt-8 flex justify-center">
+      <!-- Pagination will be added here -->
+    </div>
+  </div>
+  
+  <!-- AI Analysis Modal -->
+  <div id="ai-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-semibold text-gray-900 dark:text-white">AI Analysis</h3>
+          <button id="close-ai-modal" class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" aria-label="Close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="ai-analysis-content" class="space-y-4">
+          <!-- AI Analysis content will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Azure OpenAI Settings Modal -->
+  <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Azure OpenAI Settings</h3>
+          <button id="close-settings-modal" class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <form id="azure-openai-form" class="space-y-4">
+          <div class="form-group">
+            <label for="azure-resource-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Resource Name</label>
+            <input type="text" id="azure-resource-name" placeholder="your-resource-name.openai.azure.com" class="w-full p-2 border border-gray-300 rounded-md" required>
+            <div class="text-xs text-gray-500 mt-1">Format: your-resource-name.openai.azure.com</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="azure-api-key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+            <input type="password" id="azure-api-key" placeholder="Enter your Azure OpenAI API key" class="w-full p-2 border border-gray-300 rounded-md" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="azure-deployment-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deployment ID</label>
+            <input type="text" id="azure-deployment-id" placeholder="Enter your deployment ID" class="w-full p-2 border border-gray-300 rounded-md" required>
+            <div class="text-xs text-gray-500 mt-1">The name of your model deployment</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="azure-api-version" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Version</label>
+            <input type="text" id="azure-api-version" value="2023-05-15" class="w-full p-2 border border-gray-300 rounded-md" required>
+          </div>
+          
+          <div class="form-actions mt-6 flex justify-end gap-3">
+            <button type="button" id="test-api-connection" class="btn btn-secondary">Test Connection</button>
+            <button type="submit" id="save-azure-settings" class="btn btn-primary">Save Settings</button>
+          </div>
+          
+          <div id="connection-status" class="mt-4 p-3 hidden">
+            <!-- Connection test results will appear here -->
+          </div>
+          
+          <hr class="my-4">
+          
+          <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Enhanced AI Settings</h4>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Configure settings for enhanced AI functionality including pitch templates, competitive analysis, and action plans.
+          </p>
+          
+          <div class="form-group">
+            <label for="enhanced-ai-model" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">AI Model</label>
+            <select id="enhanced-ai-model" class="w-full p-2 border border-gray-300 rounded-md">
+              <option value="gpt-4">GPT-4 (Recommended for best results)</option>
+              <option value="gpt-35-turbo">GPT-3.5 Turbo (Faster)</option>
+            </select>
+          </div>
+          
+          <div class="form-group mt-4">
+            <label for="auto-enhanced-analysis" class="flex items-center cursor-pointer">
+              <div class="relative">
+                <input type="checkbox" id="auto-enhanced-analysis" class="sr-only">
+                <div class="block bg-gray-200 dark:bg-gray-700 w-12 h-6 rounded-full"></div>
+                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
+              </div>
+              <div class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Auto-run enhanced analysis when viewing opportunities
+              </div>
+            </label>
+          </div>
+          
+          <h5 class="text-md font-semibold text-gray-900 dark:text-white mt-4 mb-2">Cache Management</h5>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            Manage AI response caching to improve performance and reduce API usage.
+          </p>
+          
+          <div class="form-group mt-2">
+            <label for="cache-enabled" class="flex items-center cursor-pointer">
+              <div class="relative">
+                <input type="checkbox" id="cache-enabled" class="sr-only" checked>
+                <div class="block bg-gray-200 dark:bg-gray-700 w-12 h-6 rounded-full"></div>
+                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
+              </div>
+              <div class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Enable AI response caching
+              </div>
+            </label>
+          </div>
+          
+          <div class="form-group mt-2">
+            <label for="cache-ttl" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cache Expiration (days)</label>
+            <select id="cache-ttl" class="w-full p-2 border border-gray-300 rounded-md">
+              <option value="1">1 day</option>
+              <option value="7" selected>7 days</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+            </select>
+          </div>
+          
+          <div class="form-actions mt-3">
+            <button type="button" id="clear-cache" class="btn btn-secondary btn-sm">
+              Clear AI Cache
+            </button>
+            <span id="cache-size" class="text-xs text-gray-500 ml-2">Current cache size: calculating...</span>
+          </div>
+          
+          <hr class="my-4">
+          
+          <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Opportunity Classifier</h4>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Train the machine learning classifier to improve opportunity filtering accuracy.
+            The classifier learns from your feedback on which opportunities are relevant.
+          </p>
+          
+          <div class="stats-container mb-4">
+            <div class="stat">
+              <span class="stat-value" id="relevant-count">0</span>
+              <span class="stat-label">Relevant Examples</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="irrelevant-count">0</span>
+              <span class="stat-label">Irrelevant Examples</span>
+            </div>
+          </div>
+          
+          <div class="form-actions flex justify-between gap-3 mb-4">
+            <button type="button" id="train-classifier" class="btn btn-secondary" disabled>Train Classifier</button>
+            <button type="button" id="reset-classifier" class="btn btn-danger">Reset Classifier</button>
+          </div>
+          
+          <div id="classifier-status" class="mt-4 p-3 hidden">
+            <!-- Classifier training status will appear here -->
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Load module scripts first to make them available to opportunities.js -->
+  <script src="modules/promptTemplates.js" type="module"></script>
+  <script src="lib/mark.min.js"></script>
+  <script src="modules/keywordManager.js" type="module"></script>
+  <script src="modules/embeddingCache.js" type="module"></script>
+  <script src="modules/similarityCache.js" type="module"></script>
+  <script src="modules/opportunityClassifier.js" type="module"></script>
+  <script src="modules/opportunityProcessor.js" type="module"></script>
+  <script src="modules/aiService.js" type="module"></script>
+  
+  <!-- Memory management and optimization -->
+  <script src="modules/cacheOptimizer.js" type="module"></script>
+  
+  <!-- Enhanced AI functionality modules -->
+  <script src="modules/aiEnhancements.js" type="module"></script>
+  <script src="modules/enhancedAnalysisUI.js" type="module"></script>
+  
+  <!-- Multi-platform scraper modules -->
+  <script src="modules/scrapers/index.js" type="module"></script>
+  
+  <!-- Add CSS for platform navigation -->
+  <style>
+    /* Platform toggle buttons */
+    .platform-toggles {
+      margin: 15px 0;
+    }
+    
+    .platform-toggle-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    
+    .platform-toggle-label {
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+    
+    .platform-toggle-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    
+    .platform-toggle-button {
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      font-weight: 500;
+    }
+    
+    .platform-toggle-button:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    .platform-toggle-button:not(.active) {
+      background-color: var(--color-white);
+    }
+    
+    /* Platform links (for scraping) */
+    .platform-links {
+      margin-top: 10px;
+    }
+    
+    .platform-link {
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      background-color: var(--color-white);
+    }
+    
+    .platform-link:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    .source-sourcebottle:hover {
+      background-color: rgba(75, 108, 183, 0.1) !important;
+    }
+    
+    .source-featured:hover {
+      background-color: rgba(255, 152, 0, 0.1) !important;
+    }
+    
+    .source-qwoted:hover {
+      background-color: rgba(0, 150, 136, 0.1) !important;
+    }
+    
+    /* For dark mode */
+    .dark-mode .platform-toggle-button:not(.active) {
+      background-color: var(--color-light);
+      border-color: var(--color-border);
+    }
+    
+    .dark-mode .platform-link {
+      background-color: var(--color-light);
+      border-color: var(--color-border);
+    }
+    
+    .dark-mode .platform-toggle-label {
+      color: var(--color-text);
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .platform-navigation {
+        justify-content: flex-start;
+      }
+      
+      .platform-button {
+        font-size: 13px;
+        padding: 6px 12px !important;
+      }
+    }
+    
+    /* AI Analysis Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      overflow-y: auto;
+    }
+    
+    .modal-content {
+      background-color: #fefefe;
+      margin: 5% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 800px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .modal-header h3 {
+      margin: 0;
+      color: #333;
+    }
+    
+    .close-modal {
+      color: #aaa;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0 8px;
+    }
+    
+    .close-modal:hover,
+    .close-modal:focus {
+      color: #000;
+      text-decoration: none;
+    }
+    
+    .analysis-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+    }
+    
+    .analysis-section h4 {
+      margin-top: 0;
+      color: #2c3e50;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+    
+    .opportunity-details p,
+    .relevance-score p,
+    .analysis-summary p {
+      margin: 8px 0;
+      line-height: 1.5;
+    }
+    
+    .key-themes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    
+    .theme-tag {
+      background-color: #e1f5fe;
+      color: #0288d1;
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 0.9em;
+      white-space: nowrap;
+    }
+    
+    .score-high { color: #2e7d32; font-weight: bold; }
+    .score-medium { color: #ed6c02; font-weight: bold; }
+    .score-low { color: #d32f2f; font-weight: bold; }
+    
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+      margin-top: 20px;
+    }
+    
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    .btn-secondary {
+      background-color: #6c757d;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #5a6268;
+    }
+  </style>
+  
+  <script src="opportunities.js" type="module"></script>
+
+  <!-- Toast Notification -->
+  <div id="toast-notification" class="toast-notification hidden">
+    <div class="toast-content">
+      <span class="toast-message"></span>
+      <button class="toast-close">×</button>
+    </div>
+  </div>
+  
+  <!-- AI Analysis Modal -->
+  <div id="ai-analysis-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>AI Analysis</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="analysis-section">
+          <h4>Opportunity Details</h4>
+          <div id="opportunity-details" class="opportunity-details"></div>
+        </div>
+        
+        <div class="analysis-section">
+          <h4>Relevance & Priority</h4>
+          <div id="relevance-score" class="relevance-score"></div>
+        </div>
+        
+        <div class="analysis-section">
+          <h4>Key Themes</h4>
+          <div id="key-themes" class="key-themes"></div>
+        </div>
+        
+        <div class="analysis-section">
+          <h4>Analysis Summary</h4>
+          <div id="analysis-summary" class="analysis-summary"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary close-modal">Close</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Audio element for notification sound -->
+  <audio id="notification-sound" preload="none" data-src="assets/notification-sound.mp3">
+    Your browser does not support the audio element.
+  </audio>
+  
+  <!-- Enhanced Analysis Modal -->
+  <div id="enhanced-analysis-modal" class="modal hidden">
+    <div class="modal-content enhanced-modal-content">
+      <div class="modal-header">
+        <h2>Enhanced Analysis</h2>
+        <button id="close-enhanced-analysis" class="close-button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="enhanced-analysis-loading" class="loading-indicator hidden">
+          <div class="spinner"></div>
+          <p>Generating enhanced analysis...</p>
+        </div>
+        
+        <div id="enhanced-analysis-error" class="error-message hidden"></div>
+        
+        <button id="run-enhanced-analysis" class="action-button primary-button hidden">
+          <span class="icon">🔍</span> Run Enhanced Analysis
+        </button>
+        
+        <div class="enhanced-sections">
+          <div id="pitch-template-section" class="analysis-section">
+            <div class="section-header">
+              <h3><span class="icon">📝</span> Pitch Template</h3>
+              <div class="section-toggle" data-target="pitch-template-content">▼</div>
+            </div>
+            <div id="pitch-template-content" class="section-content"></div>
+          </div>
+          
+          <div id="competitive-analysis-section" class="analysis-section">
+            <div class="section-header">
+              <h3><span class="icon">🏆</span> Competitive Analysis</h3>
+              <div class="section-toggle" data-target="competitive-analysis-content">▼</div>
+            </div>
+            <div id="competitive-analysis-content" class="section-content"></div>
+          </div>
+          
+          <div id="actionable-summary-section" class="analysis-section">
+            <div class="section-header">
+              <h3><span class="icon">✅</span> Actionable Summary</h3>
+              <div class="section-toggle" data-target="actionable-summary-content">▼</div>
+            </div>
+            <div id="actionable-summary-content" class="section-content"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

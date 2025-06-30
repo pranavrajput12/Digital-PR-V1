@@ -1,0 +1,122 @@
+{
+  "manifest_version": 3,
+  "name": "Multi-Platform PR Opportunities Tracker",
+  "version": "1.2.0",
+  "description": "Track and manage media opportunities from SourceBottle, Featured.com, and Qwoted",
+  "author": "Pranav Rajput",
+  "permissions": [
+    "storage",
+    "tabs",
+    "alarms",
+    "webRequest",
+    "scripting",
+    "windows",
+    "notifications",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*.sourcebottle.com/*",
+    "https://featured.com/*",
+    "https://app.qwoted.com/*",
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*",
+    "https://api.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background_module.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.sourcebottle.com/industry-list-results.asp*",
+        "https://*.sourcebottle.com/query.asp*",
+        "https://*.sourcebottle.com/industry-list.asp*"
+      ],
+      "js": ["content-scripts/sourcebottle_content_launcher.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://featured.com/questions*",
+        "https://featured.com/experts/questions*"
+      ],
+      "js": [
+        "content-scripts/featured_globals.js",
+        "modules/scrapers/featured-scraper-clean.js",
+        "content-scripts/featured_content_launcher.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://featured.com/questions*",
+        "https://featured.com/experts/questions*"
+      ],
+      "js": ["content-scripts/featured_content_launcher_optimized.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://app.qwoted.com/opportunities*",
+        "https://app.qwoted.com/source_requests*"
+      ],
+      "js": [
+        "content-scripts/qwoted_content_launcher.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "match_about_blank": false,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://app.qwoted.com/opportunities*",
+        "https://app.qwoted.com/source_requests*"
+      ],
+      "js": ["content-scripts/qwoted_diagnostic_launcher.js"],
+      "run_at": "document_end",
+      "all_frames": false,
+      "match_about_blank": false,
+      "world": "MAIN"
+    }
+  ],
+  "action": {
+    "default_popup": "simple-popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "opportunities.html",
+        "opportunities.js",
+        "settings.html",
+        "settings.js",
+        "services/*.js",
+        "modules/*.js",
+        "modules/scrapers/*.js",
+        "modules/diagnostic-script.js",
+        "modules/scrapers/bridge-script.js",
+        "sheets-integration.js",
+        "icons/*.png",
+        "content-scripts/*.js"
+      ],
+      "matches": ["<all_urls>"],
+      "use_dynamic_url": true
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

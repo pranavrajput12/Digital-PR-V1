@@ -1,0 +1,137 @@
+{
+  "keywordGroups": {
+    "funding": {
+      "weight": 1.5,
+      "terms": [
+        "funding", "funding round", "pre-seed", "seed funding", "seed round", 
+        "series a", "series b", "series c", "series d", "bridge round",
+        "follow-on round", "down round", "capital raise", "investment",
+        "equity financing", "debt financing", "crowd funding", "crowdfunding",
+        "liquidity event", "exit strategy", "term sheet", "VC funding",
+        "angel investment", "venture capital", "pre-money valuation",
+        "post-money valuation", "private equity"
+      ]
+    },
+    "investors": {
+      "weight": 1.1,
+      "terms": [
+        "venture capital", "vc", "angel investor", "angel investment", "investor",
+        "private equity", "M&A", "mergers and acquisitions", "merger", "acquisition",
+        "due diligence", "underwriting", "IPO", "initial public offering",
+        "secondary offering", "capital markets", "equity research",
+        "valuation", "post-money valuation", "pre-money valuation",
+        "cap table", "synergy", "spin-off", "divestiture",
+        "debt issuance", "equity research"
+      ]
+    },
+    "fintech": {
+      "weight": 1.0,
+      "terms": [
+        "fintech", "financial technology", "regtech", "insurtech",
+        "crypto", "cryptocurrency", "bitcoin", "ethereum",
+        "stablecoin", "DeFi", "decentralized finance", "payment gateway",
+        "mobile payments", "digital wallet", "neobank", "challenger bank",
+        "smart contract", "tokenization", "blockchain", "distributed ledger",
+        "blockchain finance"
+      ]
+    },
+    "financeAnalysis": {
+      "weight": 1.3,
+      "terms": [
+        "financial modelling", "financial model", "pro forma",
+        "cashflow projection", "budget forecast", "discounted cash flow",
+        "DCF", "LBO", "leveraged buyout", "comparable company analysis",
+        "CCA", "sensitivity analysis", "scenario planning",
+        "burn rate", "runway", "revenue forecast", "unit economics"
+      ]
+    },
+    "generalFinance": {
+      "weight": 0.7,
+      "terms": [
+        "personal finance", "asset management", "portfolio management",
+        "risk management", "hedge fund", "mutual fund", "ETF",
+        "exchange-traded fund", "ROI", "ROE", "risk-adjusted return",
+        "tax planning", "retirement planning", "financial regulation",
+        "compliance", "AML", "KYC"
+      ]
+    },
+    "technology": {
+      "weight": 1.0,
+      "terms": [
+        "ai", "artificial intelligence", "machine learning", "ML",
+        "deep learning", "neural network", "computer vision",
+        "natural language processing", "NLP", "IoT", "internet of things",
+        "big data", "cloud computing", "tech", "technology",
+        "SaaS", "PaaS", "IaaS", "edge computing", "cybersecurity",
+        "AR", "VR", "augmented reality", "virtual reality"
+      ]
+    },
+    "ecosystem": {
+      "weight": 1.0,
+      "terms": [
+        "startup", "start-up", "tech startup", "founder", "co-founder", "entrepreneur",
+        "incubator", "accelerator", "scale-up", "pivot", "growth hacking",
+        "business model", "go-to-market", "product-market fit",
+        "minimum viable product", "MVP", "burn rate", "runway",
+        "user acquisition", "customer traction", "churn rate",
+        "unit economics", "CAC", "LTV", "key performance indicators",
+        "early stage", "seed stage", "growth stage", "pre-seed"
+      ]
+    },
+    "pitchAndPR": {
+      "weight": 1.2,
+      "terms": [
+        "pitch", "pitch deck", "demo day", "investor deck",
+        "presentation deck", "investor outreach", "roadshow",
+        "one-pager", "elevator pitch", "pitch practice", "pitch event",
+        "media pitch", "PR pitch", "press release", "press outreach",
+        "public relations", "media outreach", "brand awareness", 
+        "influencer marketing", "affiliate marketing", "sponsorship", 
+        "event marketing", "thought leadership", "white paper", 
+        "case study", "testimonial", "webinar", "podcast", "press kit", 
+        "bylined article"
+      ]
+    },
+    "digitalMarketing": {
+      "weight": 0.9,
+      "terms": [
+        "search engine optimization", "SEO", "on-page SEO",
+        "off-page SEO", "technical SEO", "keyword research",
+        "meta description", "title tag", "header tags", "schema markup",
+        "backlink", "link building", "guest posting", "content marketing",
+        "blog strategy", "organic traffic", "SEM", "PPC", "pay per click",
+        "Google Ads", "Facebook Ads", "display ads", "retargeting",
+        "social media marketing", "email marketing", "newsletter"
+      ]
+    },
+    "websiteManagement": {
+      "weight": 0.8,
+      "terms": [
+        "website management", "site maintenance", "CMS", "WordPress",
+        "Drupal", "Joomla", "web hosting", "page speed", "latency",
+        "mobile responsiveness", "UX", "UI", "A/B testing", "heatmap",
+        "conversion rate optimization", "CRO", "Google Analytics",
+        "GA4", "event tracking", "funnel analysis", "mobile responsive"
+      ]
+    }
+  },
+  "defaults": {
+    "scoreThresholds": {
+      "high": 0.7,
+      "medium": 0.4,
+      "low": 0.1
+    },
+    "titleMultiplier": 2.0,
+    "minBasicScore": 0.1,
+    "deadlineMaxDays": 30
+  },
+  "synonyms": {
+    "seed round": ["pre-seed", "seed funding", "early stage funding"],
+    "series a": ["series-a", "a round", "a-round"],
+    "venture capital": ["vc funding", "venture funding", "venture investment"],
+    "artificial intelligence": ["ai", "machine learning", "ml", "deep learning"],
+    "blockchain": ["distributed ledger", "web3", "crypto", "cryptocurrency"],
+    "growth stage": ["scale-up", "expansion stage", "growth phase"],
+    "customer acquisition": ["user acquisition", "lead generation", "growth marketing"]
+  }
+}
