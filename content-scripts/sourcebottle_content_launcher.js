@@ -16,6 +16,36 @@ console.log('📢 [SOURCEBOTTLE] Document state:', document.readyState);
 /* global chrome */
 // ^^ This comment above is for linters to recognize the chrome API
 
+// Timer management for proper cleanup
+const activeTimers = new Set();
+
+function createTimer(callback, delay) {
+  const timerId = setTimeout(() => {
+    activeTimers.delete(timerId);
+    callback();
+  }, delay);
+  activeTimers.add(timerId);
+  return timerId;
+}
+
+function cleanup() {
+  // Clear all active timers
+  activeTimers.forEach(timerId => clearTimeout(timerId));
+  activeTimers.clear();
+  
+  // Remove any created UI elements
+  const progressToggle = document.getElementById('sb-progress-toggle');
+  if (progressToggle) {
+    progressToggle.remove();
+  }
+  
+  logManager.log('Content script cleanup completed');
+}
+
+// Add cleanup on page unload
+window.addEventListener('beforeunload', cleanup);
+window.addEventListener('pagehide', cleanup);
+
 // Define logManager for logging purposes
 const logManager = {
   log: function(message, data) {
@@ -43,7 +73,7 @@ function createProgressToggle() {
       },
       hide: function() {
         existingToggle.style.opacity = '0';
-        setTimeout(() => existingToggle.style.display = 'none', 300);
+        createTimer(() => existingToggle.style.display = 'none', 300);
       },
       update: function(message, progress, count) {
         const statusEl = document.getElementById('sb-status');
@@ -305,7 +335,7 @@ quickCloseBtn.style.cssText = `
 `;
 quickCloseBtn.onclick = () => {
   quickNotification.style.opacity = '0';
-  setTimeout(() => {
+  createTimer(() => {
     if (document.body.contains(quickNotification)) {
       document.body.removeChild(quickNotification);
     }
@@ -369,7 +399,7 @@ async function initializeScraper() {
         progressToggle.update('Analyzing page content...', 25);
       }
       
-      setTimeout(() => {
+      createTimer(() => {
         try {
           console.log('📢 [SOURCEBOTTLE] Delay complete, extracting opportunities');
           
@@ -413,7 +443,7 @@ async function initializeScraper() {
       logManager.log('Not on a SourceBottle opportunities page, skipping scraper initialization');
       if (progressToggle) {
         progressToggle.update('Not on a SourceBottle opportunities page', 100, 0);
-        setTimeout(() => progressToggle.hide(), 3000);
+        createTimer(() => progressToggle.hide(), 3000);
       }
     }
   } catch (error) {
@@ -546,6 +576,45 @@ function extractOpportunityFromDiv(resultDiv, index, currentUrl) {
     const descriptionElement = resultDiv.querySelector('.result-description');
     const description = descriptionElement ? descriptionElement.textContent.trim() : '';
     
+    // Extract publication/media outlet - look for outlet info in result div
+    let publication = '';
+    let journalist = '';
+    
+    // Try to find outlet information - SourceBottle might show this in various places
+    const publicationElement = resultDiv.querySelector('.result-publication, .media-outlet, .publication-name');
+    if (publicationElement) {
+      publication = publicationElement.textContent.trim();
+    }
+    
+    // Try to find journalist information
+    const journalistElement = resultDiv.querySelector('.result-journalist, .journalist-name, .submitted-by');
+    if (journalistElement) {
+      journalist = journalistElement.textContent.trim();
+    }
+    
+    // If not found in specific elements, try to extract from any text that might contain this info
+    if (!publication || !journalist) {
+      const resultText = resultDiv.textContent;
+      
+      // Look for patterns like "Publication: XXX" or "Media Outlet: XXX"
+      const pubMatch = resultText.match(/(?:Publication|Media Outlet|Outlet):\s*([^,\n]+)/i);
+      if (pubMatch && !publication) {
+        publication = pubMatch[1].trim();
+      }
+      
+      // Look for patterns like "Journalist: XXX" or "Submitted by: XXX"
+      const journMatch = resultText.match(/(?:Journalist|Reporter|Submitted by|From):\s*([^,\n]+)/i);
+      if (journMatch && !journalist) {
+        journalist = journMatch[1].trim();
+      }
+    }
+    
+    // Debug logging for missing fields
+    if (!publication && !journalist) {
+      console.log('📢 [SOURCEBOTTLE] Could not find publication/journalist info. Result div HTML:', resultDiv.innerHTML);
+      console.log('📢 [SOURCEBOTTLE] Note: Additional details might be available on the individual opportunity page at:', url);
+    }
+    
     // Extract deadline
     const deadlineElement = resultDiv.querySelector('.result-deadline');
     let deadline = '';
@@ -579,6 +648,8 @@ function extractOpportunityFromDiv(resultDiv, index, currentUrl) {
       deadline: deadline,
       category: category,
       source: 'sourcebottle',
+      publication: publication || '', // Add media outlet/publication
+      journalist: journalist || '', // Add journalist info
       dateAdded: new Date().toISOString(),
       externalId: url.split('/').pop() || `sb-${Math.random().toString(36).substr(2, 9)}`
     };

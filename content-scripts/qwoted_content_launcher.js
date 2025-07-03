@@ -67,6 +67,96 @@ function showNotification(message) {
 // Show initial notification
 showNotification();
 
+// Bridge communication helpers
+let bridgeReady = false;
+let requestCounter = 0;
+const pendingRequests = new Map();
+
+// Listen for bridge messages
+window.addEventListener('message', function(event) {
+  if (event.origin !== window.location.origin) return;
+  
+  if (event.data && event.data.type === 'QWOTED_BRIDGE_READY') {
+    bridgeReady = true;
+    console.log('💬 [QWOTED] Bridge is ready');
+  }
+  
+  if (event.data && event.data.type === 'QWOTED_BRIDGE_RESPONSE') {
+    const { requestId, success, data, error } = event.data;
+    const request = pendingRequests.get(requestId);
+    if (request) {
+      pendingRequests.delete(requestId);
+      if (success) {
+        request.resolve(data);
+      } else {
+        request.reject(new Error(error || 'Bridge request failed'));
+      }
+    }
+  }
+});
+
+// Function to make requests through the bridge
+function bridgeRequest(action, data) {
+  return new Promise((resolve, reject) => {
+    if (!bridgeReady) {
+      reject(new Error('Bridge not ready'));
+      return;
+    }
+    
+    const requestId = ++requestCounter;
+    pendingRequests.set(requestId, { resolve, reject });
+    
+    window.postMessage({
+      type: 'QWOTED_BRIDGE_REQUEST',
+      action: action,
+      data: data,
+      requestId: requestId
+    }, window.location.origin);
+    
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      if (pendingRequests.has(requestId)) {
+        pendingRequests.delete(requestId);
+        reject(new Error('Bridge request timeout'));
+      }
+    }, 10000);
+  });
+}
+
+// Function to inject the scrapers registry first
+function injectScrapersRegistry() {
+  return new Promise(async (resolve) => {
+    console.log('💬 [QWOTED] Loading scrapers registry...');
+    
+    try {
+      // Wait for bridge to be ready
+      let waitCount = 0;
+      while (!bridgeReady && waitCount < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        waitCount++;
+      }
+      
+      if (!bridgeReady) {
+        console.warn('💬 [QWOTED] Bridge not ready, skipping registry loading');
+        resolve();
+        return;
+      }
+      
+      // Use bridge to inject script
+      await bridgeRequest('INJECT_SCRIPT', {
+        path: 'modules/scrapers/index.js',
+        type: 'module'
+      });
+      
+      console.log('💬 [QWOTED] Scrapers registry loaded successfully');
+      resolve();
+    } catch (error) {
+      console.warn('💬 [QWOTED] Failed to load scrapers registry via bridge:', error);
+      resolve(); // Continue anyway
+    }
+  });
+}
+
 // Function to inject the scraper script
 function injectScraperScript() {
   return new Promise((resolve) => {
@@ -119,7 +209,72 @@ function injectScraperScript() {
         async init() {
           await super.init();
           console.log('[QWOTED] Initializing Qwoted scraper...');
+          this.addScraperButton();
           return true;
+        }
+        
+        // Add the scraper button UI like other scrapers
+        addScraperButton() {
+          // Remove any existing button first
+          const existingButton = document.getElementById('qwoted-scraper-button');
+          if (existingButton) {
+            existingButton.remove();
+          }
+          
+          // Create the scraper button
+          const button = document.createElement('button');
+          button.id = 'qwoted-scraper-button';
+          button.textContent = '🚀 Scrape Qwoted Opportunities';
+          button.style.position = 'fixed';
+          button.style.top = '20px';
+          button.style.right = '20px';
+          button.style.zIndex = '99999';
+          button.style.backgroundColor = '#4CAF50';
+          button.style.color = 'white';
+          button.style.border = 'none';
+          button.style.padding = '12px 20px';
+          button.style.borderRadius = '6px';
+          button.style.cursor = 'pointer';
+          button.style.fontSize = '14px';
+          button.style.fontWeight = 'bold';
+          button.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+          
+          // Add hover effect
+          button.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#45a049';
+          });
+          button.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '#4CAF50';
+          });
+          
+          // Add click handler to start scraping
+          button.addEventListener('click', async () => {
+            console.log('[QWOTED] User clicked scrape button');
+            button.disabled = true;
+            button.textContent = '⏳ Scraping...';
+            
+            try {
+              const opportunities = await this.scrape();
+              button.textContent = '✅ Found ' + opportunities.length + ' opportunities';
+              setTimeout(() => {
+                button.disabled = false;
+                button.textContent = '🚀 Scrape Qwoted Opportunities';
+              }, 3000);
+            } catch (error) {
+              console.error('[QWOTED] Error during scraping:', error);
+              button.textContent = '❌ Error - Try Again';
+              button.style.backgroundColor = '#f44336';
+              setTimeout(() => {
+                button.disabled = false;
+                button.textContent = '🚀 Scrape Qwoted Opportunities';
+                button.style.backgroundColor = '#4CAF50';
+              }, 3000);
+            }
+          });
+          
+          // Add button to page
+          document.body.appendChild(button);
+          console.log('[QWOTED] Scraper button added to page');
         }
         
         // Show a live status popup similar to Source Bottle
@@ -179,15 +334,20 @@ function injectScraperScript() {
             });
             console.log('[QWOTED] Found ' + opportunities.length + ' opportunities');
             this.showStatusPopup('Qwoted: Found ' + opportunities.length + ' opportunities', true);
-            // Send to backend if any
-            if (opportunities.length > 0 && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-              chrome.runtime.sendMessage({
-                type: 'OPPORTUNITIES_EXTRACTED',
-                platform: 'qwoted',
-                opportunities
-              }, (response) => {
-                console.log('[QWOTED] Opportunities sent to backend', response);
-              });
+            
+            // Save opportunities via bridge
+            if (opportunities.length > 0) {
+              try {
+                const result = await bridgeRequest('SAVE_OPPORTUNITIES', {
+                  opportunities: opportunities,
+                  storageKey: 'qwotedOpportunities'
+                });
+                console.log('[QWOTED] Opportunities saved to storage:', result);
+                this.showStatusPopup('Qwoted: Saved ' + result.saved + ' new opportunities!', true);
+              } catch (error) {
+                console.error('[QWOTED] Error saving opportunities:', error);
+                this.showStatusPopup('Qwoted: Error saving opportunities', true);
+              }
             }
             return opportunities;
           } catch (error) {
@@ -221,37 +381,35 @@ function injectScraperScript() {
                 return false;
               }
 
-              // Try to register immediately
-              if (!registerWithRegistry()) {
-                console.log('[QWOTED] Scrapers registry not available yet, will retry...');
-                // Set up a retry mechanism
-                var maxRetries = 10;
-                var retryCount = 0;
-                
-                var tryRegister = setInterval(function() {
-                  if (registerWithRegistry()) {
-                    clearInterval(tryRegister);
-                  } else if (retryCount >= maxRetries) {
-                    clearInterval(tryRegister);
-                    console.warn('[QWOTED] Failed to register with scrapers registry after multiple attempts');
-                    // Create a fallback registry if all retries fail
-                    if (!window.scrapers) {
-                      window.scrapers = {
-                        register: function(name, scraper) {
-                          console.log('[QWOTED] Created fallback registry for:', name);
-                          window[name + 'Scraper'] = scraper;
-                          return true;
-                        }
-                      };
-                      window.scrapers.register('Qwoted', window.qwotedScraper);
-                    }
+              // Use simple deferred registration pattern like Featured scraper
+              setTimeout(function() {
+                try {
+                  if (window.scrapers && typeof window.scrapers.register === 'function') {
+                    var registered = window.scrapers.register('Qwoted', window.qwotedScraper);
+                    console.log('💬 [QWOTED] Successfully registered with scrapers registry:', registered);
+                  } else {
+                    console.warn('💬 [QWOTED] Scrapers registry not available, will create simple fallback');
+                    // Create simple fallback registry
+                    window.scrapers = window.scrapers || {
+                      registry: new Map(),
+                      register: function(name, scraper) {
+                        this.registry.set(name, scraper);
+                        console.log('💬 [QWOTED] Registered', name, 'with fallback registry');
+                        return true;
+                      },
+                      get: function(name) {
+                        return this.registry.get(name);
+                      }
+                    };
+                    window.scrapers.register('Qwoted', window.qwotedScraper);
                   }
-                  retryCount++;
-                }, 500);
-              }  
+                } catch (error) {
+                  console.error('💬 [QWOTED] Failed to register with scrapers registry:', error);
+                }
+              }, 500);  
                 
               // Dispatch event to notify that scraper is ready
-              document.dispatchEvent(new CustomEvent('qwotedScraperReady', {
+              document.dispatchEvent(new CustomEvent('qwoted-scrapers-ready', {
                 detail: { success: true }
               }));
             })
@@ -307,86 +465,7 @@ function injectScraperScript() {
   });
 }
 
-// Function to initialize the scraper and ensure registry, registration, auto-start, and notification
-async function initializeScraper() {
-  try {
-    console.log('💬 [QWOTED] Initializing Qwoted scraper...');
-
-    // Inject the scraper script
-    await injectScraperScript();
-    // Wait a moment for the script to execute
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Ensure fallback registry exists if missing
-    if (!window.scrapers) {
-      console.log('💬 [QWOTED] Creating fallback scrapers registry');
-      window.scrapers = {
-        register: function(name, scraper) {
-          window[name + 'Scraper'] = scraper;
-          return true;
-        },
-        get: function(name) {
-          return window[name + 'Scraper'] || null;
-        },
-        getAll: function() {
-          const result = {};
-          if (window.qwotedScraper) result.qwoted = window.qwotedScraper;
-          return result;
-        }
-      };
-    }
-
-    // Check if the scraper is available
-    if (window.qwotedScraper) {
-      console.log('✅ [QWOTED] Scraper initialized successfully');
-      // Register the scraper
-      window.scrapers.register('qwoted', window.qwotedScraper);
-      // Initialize the scraper
-      try {
-        await window.qwotedScraper.init();
-        console.log('✅ [QWOTED] Scraper init completed');
-        // Show popup at start
-        showNotification('Qwoted: Scraping opportunities...');
-        // Auto-trigger scraping
-        if (typeof window.qwotedScraper.scrape === 'function') {
-          showNotification('Qwoted: Scraping opportunities...');
-          window.qwotedScraper.scrape().then(opportunities => {
-            // Show popup at completion
-            showNotification(`Qwoted: Scraped ${opportunities.length} opportunities!`);
-            // Send to backend
-            if (Array.isArray(opportunities) && opportunities.length > 0 && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-              chrome.runtime.sendMessage({
-                type: 'OPPORTUNITIES_EXTRACTED',
-                platform: 'qwoted',
-                opportunities
-              }, (response) => {
-                console.log('[QWOTED] Opportunities sent to backend', response);
-              });
-            }
-          }).catch(error => {
-            showNotification('Qwoted: Error during scraping');
-            console.error('[QWOTED] Error in scrape:', error);
-          });
-        }
-        // Dispatch event that scraper is ready
-        const event = new CustomEvent('qwoted-scraper-ready', { detail: { scraper: window.qwotedScraper } });
-        window.dispatchEvent(event);
-      } catch (initError) {
-        showNotification('Qwoted: Scraper init error');
-        console.error(' [QWOTED] Error initializing scraper:', initError);
-      }
-    } else {
-      const error = new Error('Scraper not found in window object');
-      showNotification('Qwoted: Scraper not found');
-      console.error(' [QWOTED]', error.message);
-      throw error;
-    }
-  } catch (error) {
-    showNotification('Qwoted: Fatal error');
-    console.error(' [QWOTED] Error in initializeScraper:', error);
-    throw error;
-  }
-}
+// Note: initializeScraper function moved to line 442 to avoid duplication
 
 
 // Function to initialize the scraper when the page is ready
@@ -456,7 +535,8 @@ async function initializeScraper() {
     
     logManager.debug('Logger initialized successfully');
     
-    // Inject the scraper script into the page
+    // Load the scrapers registry first, then inject the scraper script
+    await injectScrapersRegistry();
     await injectScraperScript();
     
     // Define BaseScraper first if not available (to prevent errors)

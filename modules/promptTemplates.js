@@ -71,10 +71,8 @@ function renderTemplate(template, data) {
   });
 }
 
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { PromptTemplates, renderTemplate };
-}
+// Export for ES6 modules
+export { PromptTemplates, renderTemplate };
 
 // Expose to window for browser/extension usage
 if (typeof window !== 'undefined') {

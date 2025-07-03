@@ -1,7 +1,7 @@
 {
-  "name": "sourcebottle-extension",
-  "version": "1.1.0",
-  "description": "Track and manage media opportunities from SourceBottle",
+  "name": "multi-platform-pr-tracker",
+  "version": "1.2.0",
+  "description": "Track and manage media opportunities from SourceBottle, Featured.com, and Qwoted",
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
@@ -281,14 +281,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Qubit-Capital/PR.git"
+    "url": "git+https://github.com/pranav-rajput/multi-platform-pr-tracker.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Pranav Rajput",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Qubit-Capital/PR/issues"
   },
-  "homepage": "https://github.com/Qubit-Capital/PR#readme"
+  "homepage": "https://github.com/pranav-rajput/multi-platform-pr-tracker#readme"
 }

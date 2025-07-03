@@ -235,7 +235,12 @@ class LogManager {
 const logManagerInstance = new LogManager();
 
 // Expose to window global object for Manifest V3 CSP compatibility
-window.logManager = logManagerInstance;
+if (typeof window !== 'undefined') {
+  window.logManager = logManagerInstance;
+}
+
+// Export for ES module compatibility
+export { logManagerInstance as logManager };
 
 // Log initialization
 console.log('[SourceBottle] Logger initialized and exposed to window.logManager');

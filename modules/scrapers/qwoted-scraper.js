@@ -82,21 +82,43 @@ class QwotedScraper extends window.BaseScraper {
       return isValid;
     };
     
-    // CSS Selectors for Qwoted.com elements - updated to support source_requests page and client-side rendering
-    this.ROW_SELECTOR = 'tr.opportunity-row, tr.source-request-row, .source-request-item, [data-react-class*="source_requests"], [data-react-class*="opportunity"], .card';
+    // CSS Selectors for Qwoted.com elements - using robust anchoring based on CSS guidance
+    // Anchor on the unique card structure with position-relative
+    this.ROW_SELECTOR = 'div.card-body.position-relative';
     
-    // Backup selectors for fallback, including React-rendered components
+    // More specific selectors anchored to the card structure
     this.selectors = {
-      table: '.opportunities-table, [data-testid="opportunities-table"], .source-requests-table, [data-testid="source-requests-table"], [data-react-class*="top_level_search"]',
-      row: 'tr:not(.header-row), .source-request-item, .card, .opportunity-card, .request-card, [data-react-class*="opportunity"]',
-      // Specific selectors from the provided HTML structure
-      brandName: '.w-75.mb-0.fw-bold.mt-0, .mb-2',
-      expertRequest: '.text-uppercase.text-secondary.font-size-12px.mt-3, .mb-0',
+      // Master card anchor - the unique combo that identifies Qwoted cards
+      cardBody: 'div.card-body.position-relative',
+      
+      // Context-specific anchor if multiple card types exist
+      resultsCards: 'section#results div.card-body.position-relative',
+      
+      // Key structural regions based on CSS guidance
+      orgLogo: '.card-body img[alt*=""]',  // Fallback to .card-body .w-50 img if brand changes
+      shareButtons: '.card-body .share-buttons',
+      shareIcons: {
+        email: '.share-buttons i.fa-envelope, .share-buttons i[class*="fa-envelope"]',
+        linkedin: '.share-buttons i.fa-linkedin, .share-buttons i[class*="fa-linkedin"]', 
+        twitter: '.share-buttons i.fa-x-twitter, .share-buttons i[class*="fa-twitter"]'
+      },
+      
+      // Content selectors with robust anchoring
+      brandName: '.card-body h6.fw-bold > a',  // The h6 always holds the org link
+      categoryLabel: '.card-body .text-uppercase.font-size-12px',  // "EXPERT REQUEST"
+      mainTitleLink: '.card-body > a[href^="/source_requests/"]',  // First top-level link
+      description: '.card-body p.small',  // Contains the request snippet
+      hashtagBadges: '.card-body a.badge',  // Each hashtag badge
+      saveButton: '.card-body button[title*="Add to saved"], .card-body button[title*="favorites"]',
+      
+      // Meta information
+      postedTime: '.card-body .source-request-created-at',  // Relative timestamp
+      deadline: '.card-body .source-request-deadline',  // Countdown deadline
+      
+      // Fallback selectors for backward compatibility
+      title: 'h6.fw-bold > a, .ais-Highlight, h3, h4, .fw-bold',
       pitchTitle: '.ais-Highlight, .ais-Highlight-nonHighlighted, h3, h4, .fw-bold',
-      title: 'td.title a, [data-testid="opportunity-title"], [data-testid="request-title"], .request-title, .card-title, h3, h4, .fw-bold',
-      description: 'td.description, [data-testid="opportunity-description"], [data-testid="request-description"], .request-description, .card-text, p',
-      deadline: '.source-request-deadline, .font-size-12px, td.deadline, [data-testid="opportunity-deadline"], [data-testid="request-deadline"], .request-deadline, .due-date, time, .text-danger',
-      postedTime: '.source-request-created-at, .text-secondary.font-size-12px',
+      expertRequest: '.text-uppercase.text-secondary.font-size-12px.mt-3, .text-uppercase.font-size-12px',
       category: '.card-header, td.category, [data-testid="opportunity-category"], [data-testid="request-category"], .request-category, .badge, .tag, .category',
       tags: '.p-1.mb-1.me-1.text-dark.badge.bg-light.font-size-10px, td.tags, [data-testid="opportunity-tags"], [data-testid="request-tags"], .request-tags, .tags, .badge, .tag, .pill',
       pagination: '.pagination, nav, [data-react-class*="pagination"]',
@@ -557,21 +579,28 @@ class QwotedScraper extends window.BaseScraper {
           
           // Extract and debug each field with enhanced fallbacks
           
-          // First extract the company/brand name using specific selectors
+          // Extract using robust selectors - anchored to card structure
+          
+          // Extract brand/organization name using the robust h6 selector
           let brandName = this.extractText(item, this.selectors.brandName);
           if (!brandName) {
-            // Try to find any heading element within the item
+            // Fallback to any heading element within the card
             const heading = item.querySelector('h1, h2, h3, h4, h5, h6, strong, b, .title, .header');
             brandName = heading ? heading.textContent.trim() : '';
           }
           console.log(`💬 [QWOTED DEBUG] Item ${index + 1} - Brand Name:`, brandName);
 
-          // Check if we have an EXPERT REQUEST label
-          const hasExpertRequest = !!item.querySelector(this.selectors.expertRequest);
+          // Check if we have an EXPERT REQUEST category label using robust selector
+          const categoryElement = item.querySelector(this.selectors.categoryLabel);
+          const hasExpertRequest = categoryElement && categoryElement.textContent.toUpperCase().includes('EXPERT REQUEST');
           console.log(`💬 [QWOTED DEBUG] Item ${index + 1} - Has Expert Request label:`, hasExpertRequest);
 
-          // Now extract the actual pitch title using the highlight selector
-          let pitchTitle = this.extractText(item, this.selectors.pitchTitle);
+          // Extract the main title/pitch using the robust main title link selector
+          let pitchTitle = this.extractText(item, this.selectors.mainTitleLink);
+          if (!pitchTitle) {
+            // Try the fallback pitchTitle selector
+            pitchTitle = this.extractText(item, this.selectors.pitchTitle);
+          }
           if (!pitchTitle) {
             // Try to find any text that looks like a pitch title (contains 'Looking for', 'Seeking', etc.)
             const allText = item.textContent;
@@ -583,10 +612,14 @@ class QwotedScraper extends window.BaseScraper {
           }
           console.log(`💬 [QWOTED DEBUG] Item ${index + 1} - Pitch Title:`, pitchTitle);
           
-          // Extract the URL more aggressively since we need it for the "View Opportunity" button
-          let url = item.querySelector(this.selectors.title)?.href;
+          // Extract URL using the robust main title link selector
+          let url = item.querySelector(this.selectors.mainTitleLink)?.href;
           if (!url) {
-            // Try to find any link within the item
+            // Try the brand name link as fallback
+            url = item.querySelector(this.selectors.brandName)?.href;
+          }
+          if (!url) {
+            // Try to find any link within the card
             const allLinks = item.querySelectorAll('a[href]');
             if (allLinks.length > 0) {
               for (const link of allLinks) {
@@ -627,12 +660,20 @@ class QwotedScraper extends window.BaseScraper {
           let postedTime = this.extractText(item, this.selectors.postedTime);
           console.log(`💬 [QWOTED DEBUG] Item ${index + 1} - Posted Time:`, postedTime || 'Not found');
           
-          // Extract tags with enhanced approach using the specific selectors
-          let tags = this.extractAllText(item, this.selectors.tags);
+          // Extract tags using robust hashtag badge selector
+          let tags = [];
+          const badgeElements = item.querySelectorAll(this.selectors.hashtagBadges);
+          if (badgeElements.length > 0) {
+            tags = Array.from(badgeElements).map(badge => badge.textContent.trim()).filter(tag => tag);
+          }
           
-          // If no tags found but we have hashtags in the content
+          // If no badge tags found, try the fallback tags selector
           if (!tags.length) {
-            // Look for hashtag-style tags in the text content (format: #Tag1#Tag2#Tag3)
+            tags = this.extractAllText(item, this.selectors.tags);
+          }
+          
+          // If still no tags found, look for hashtag-style tags in content
+          if (!tags.length) {
             const allText = item.textContent;
             const hashtagPattern = /#([A-Za-z0-9]+)/g;
             const matches = allText.matchAll(hashtagPattern);
@@ -648,6 +689,7 @@ class QwotedScraper extends window.BaseScraper {
           
           console.log(`💬 [QWOTED DEBUG] Item ${index + 1} - Tags:`, tags);
           
+          // Extract description using the robust snippet paragraph selector
           let description = this.extractText(item, this.selectors.description);
           if (!description) {
             // Try to find any paragraph or div with substantial text

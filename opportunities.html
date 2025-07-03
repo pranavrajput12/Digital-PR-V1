@@ -6,7 +6,6 @@
   <title>Multi-Platform PR Opportunities Tracker</title>
   <!-- Use local styles only - no external scripts or styles (CSP restriction) -->
   <link rel="stylesheet" href="styles/opportunities.css">
-  <link rel="stylesheet" href="modules/scrapers/styles.css">
   <style>
     :root {
       --color-primary: #4361ee;
@@ -1522,6 +1521,7 @@
   </div>
   
   <!-- Load module scripts first to make them available to opportunities.js -->
+  <script src="modules/unifiedCache.js" type="module"></script>
   <script src="modules/promptTemplates.js" type="module"></script>
   <script src="lib/mark.min.js"></script>
   <script src="modules/keywordManager.js" type="module"></script>

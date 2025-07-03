@@ -9,6 +9,7 @@ import { storageManager } from './modules/storage.js';
 import { integrationsManager } from './modules/integrations.js';
 import { opportunityScraper } from './modules/scraper.js';
 import { aiService } from './modules/aiService.js';
+import { unifiedCache } from './modules/unifiedCache.js';
 
 // Constants
 const DEFAULT_REFRESH_INTERVAL = 60; // minutes
@@ -26,6 +27,7 @@ class BackgroundController {
     this.pendingResponses = new Map();
     
     // Initialize components
+    this.initializeCache();
     this.setupMessageHandlers();
     this.setupAlarms();
     this.setupBadge();
@@ -33,6 +35,23 @@ class BackgroundController {
     
     logManager.log('Background controller initialized');
     this.debugLog('Background controller initialized');
+  }
+
+  /**
+   * Initialize the unified cache system
+   */
+  async initializeCache() {
+    try {
+      logManager.log('Initializing unified cache system');
+      await unifiedCache.initialize({
+        totalMemoryLimit: 400, // MB - Conservative for background script
+        defaultTTL: 3600000, // 1 hour
+        persistentStorage: true
+      });
+      logManager.log('Unified cache system initialized successfully');
+    } catch (error) {
+      logManager.error('Failed to initialize unified cache system:', error);
+    }
   }
   
   /**
@@ -108,6 +127,11 @@ class BackgroundController {
       
       // Check if alarms are already set up
       chrome.alarms.get('refreshData', (alarm) => {
+        if (chrome.runtime.lastError) {
+          logManager.error('Error getting alarm:', chrome.runtime.lastError);
+          return;
+        }
+        
         if (!alarm) {
           logManager.log(`Setting up refresh alarm with interval: ${refreshInterval} minutes`);
           
@@ -115,6 +139,10 @@ class BackgroundController {
           chrome.alarms.create('refreshData', {
             periodInMinutes: refreshInterval,
           });
+          
+          if (chrome.runtime.lastError) {
+            logManager.error('Error creating alarm:', chrome.runtime.lastError);
+          }
         }
       });
     });
@@ -351,6 +379,16 @@ class BackgroundController {
             chrome.tabs.sendMessage(tabId, { 
               action: 'extractSourceBottleOpportunities',
               requestId: requestId
+            }, (response) => {
+              if (chrome.runtime.lastError) {
+                logManager.error('Error sending message to content script:', chrome.runtime.lastError);
+                // Handle the case where content script isn't ready or tab was closed
+                const pendingResponse = this.pendingResponses.get(requestId);
+                if (pendingResponse) {
+                  pendingResponse({ success: false, error: 'Failed to communicate with page' });
+                  this.pendingResponses.delete(requestId);
+                }
+              }
             });
           }
         });
@@ -418,6 +456,12 @@ class BackgroundController {
       
       // Check if we already have a SourceBottle tab open
       chrome.tabs.query({ url: '*://*.sourcebottle.com/*' }, (tabs) => {
+        if (chrome.runtime.lastError) {
+          logManager.error('Error querying tabs:', chrome.runtime.lastError);
+          sendResponse({ success: false, error: 'Failed to query browser tabs' });
+          return;
+        }
+        
         if (tabs.length > 0) {
           // Use the existing tab
           const tab = tabs[0];
@@ -425,6 +469,11 @@ class BackgroundController {
           
           // Reload the tab to get fresh data
           chrome.tabs.reload(tab.id, {}, () => {
+            if (chrome.runtime.lastError) {
+              logManager.error('Error reloading tab:', chrome.runtime.lastError);
+              sendResponse({ success: false, error: 'Failed to reload page' });
+              return;
+            }
             logManager.log(`Reloaded SourceBottle tab: ${tab.id}`);
           });
           
@@ -441,6 +490,11 @@ class BackgroundController {
             url: 'https://www.sourcebottle.com/industry-list-results.asp?industry=All',
             active: true // Make it active so the user can see what's happening
           }, (tab) => {
+            if (chrome.runtime.lastError) {
+              logManager.error('Error creating tab:', chrome.runtime.lastError);
+              sendResponse({ success: false, error: 'Failed to open new tab' });
+              return;
+            }
             logManager.log(`Opened new SourceBottle tab: ${tab.id}`);
           });
           

@@ -1,18 +1,17 @@
-// Initialize logger reference
-let logManager = null;
+// Initialize logger reference with console fallback
+// Check if logManager already exists (from unifiedCache.js or other scripts)
+if (typeof logManager === 'undefined') {
+  window.logManager = window.logManager || {
+    debug: (msg, data) => console.debug(`[Popup] ${msg}`, data || ''),
+    log: (msg, data) => console.log(`[Popup] ${msg}`, data || ''),
+    error: (msg, data) => console.error(`[Popup] ${msg}`, data || ''),
+    warn: (msg, data) => console.warn(`[Popup] ${msg}`, data || '')
+  };
+}
 
-// Try to import logger if available
-try {
-  import(chrome.runtime.getURL('modules/logger.js'))
-    .then(module => {
-      logManager = module.logManager;
-      logManager.debug('Popup initialized with logger');
-    })
-    .catch(() => {
-      console.debug('Using console fallback for logging');
-    });
-} catch (e) {
-  console.debug('Could not load logger, using console fallback');
+// Log initialization
+if (window.logManager) {
+  window.logManager.debug('Popup initialized');
 }
 
 /**
@@ -22,8 +21,8 @@ try {
  */
 function debugLog(message, data) {
   try {
-    if (logManager) {
-      logManager.debug(`[Popup] ${message}`, data);
+    if (window.logManager) {
+      window.logManager.debug(`[Popup] ${message}`, data);
     } else {
       console.debug(`[Popup] ${message}`, data || '');
     }
@@ -34,6 +33,26 @@ function debugLog(message, data) {
 
 document.addEventListener('DOMContentLoaded', function() {
   debugLog('Popup initialized');
+  
+  // Initialize unified cache if not already available
+  if (!window.storageCache && window.unifiedCache) {
+    window.storageCache = window.unifiedCache.getCache('storage');
+    debugLog('Storage cache initialized from unified cache');
+  }
+  
+  // Debug function to test all buttons
+  function debugButtons() {
+    debugLog('=== BUTTON DEBUG ===');
+    debugLog('viewButton element:', document.getElementById('view-opportunities'));
+    debugLog('settingsButton element:', document.getElementById('open-settings'));
+    debugLog('exportButton element:', document.getElementById('export-csv'));
+    debugLog('sheetsButton element:', document.getElementById('send-to-sheets'));
+    debugLog('storageCache available:', !!window.storageCache);
+    debugLog('chrome.tabs available:', !!(chrome && chrome.tabs));
+    debugLog('===================');
+  }
+  
+  debugButtons();
   
   // Get DOM elements
   const statusElement = document.getElementById('status');
@@ -185,7 +204,15 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   if (exportButton) {
-    exportButton.addEventListener('click', exportToCSV);
+    console.log('Adding click listener to export button');
+    exportButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('Export button clicked');
+      debugLog('Export button clicked');
+      exportToCSV();
+    });
+  } else {
+    console.error('Export button not found!');
   }
   
   if (refreshButton) {
@@ -193,11 +220,27 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   if (settingsButton) {
-    settingsButton.addEventListener('click', openSettings);
+    console.log('Adding click listener to settings button');
+    settingsButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('Settings button clicked');
+      debugLog('Settings button clicked');
+      openSettings();
+    });
+  } else {
+    console.error('Settings button not found!');
   }
   
   if (sheetsButton) {
-    sheetsButton.addEventListener('click', exportToSheets);
+    console.log('Adding click listener to sheets button');
+    sheetsButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('Sheets button clicked');
+      debugLog('Sheets button clicked');
+      exportToSheets();
+    });
+  } else {
+    console.error('Sheets button not found!');
   }
   
   // Add click event to category buttons
@@ -359,24 +402,37 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // View opportunities button
   if (viewButton) {
-    viewButton.addEventListener('click', function() {
-      // Check if we have any opportunities
-      chrome.storage.local.get(['sourceBottleOpportunities'], function(result) {
-        const opportunities = result.sourceBottleOpportunities || [];
+    console.log('Adding click listener to view button');
+    viewButton.addEventListener('click', async function(e) {
+      e.preventDefault();
+      console.log('View opportunities button clicked');
+      debugLog('View opportunities button clicked');
+      try {
+        // Use cached storage read
+        const opportunities = await getCachedOpportunities();
+        console.log('Retrieved opportunities:', opportunities);
         
-        if (opportunities.length === 0) {
+        if (!opportunities || opportunities.length === 0) {
+          console.log('No opportunities found');
           setDebugStatus('No opportunities found. Please select a category to scrape first.', true);
           return;
         }
         
+        console.log('Opening opportunities page with', opportunities.length, 'opportunities');
         // Open opportunities list page
         chrome.tabs.create({ url: 'opportunities.html' });
-      });
+      } catch (error) {
+        console.error('Error accessing opportunities:', error);
+        setDebugStatus('Error accessing opportunities data.', true);
+      }
     });
+  } else {
+    console.error('View opportunities button not found!');
   }
   
   // Initialize popup
   function initPopup() {
+    console.log('Initializing popup...');
     // Get the opportunities list element
     const opportunitiesList = document.getElementById('opportunities-list');
     if (!opportunitiesList) {
@@ -384,20 +440,92 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    loadOpportunities();
+    // Wait a bit for cache to load, then load opportunities
+    setTimeout(() => {
+      loadOpportunities();
+    }, 100);
     addStyles();
   }
   
+  // Storage cache helper functions
+  async function getCachedOpportunities() {
+    try {
+      if (window.storageCache) {
+        console.log('Using storage cache for opportunities');
+        // Get all opportunities from all platforms
+        const allData = await window.storageCache.getMultiple([
+          'sourceBottleOpportunities', 
+          'qwotedOpportunities', 
+          'featuredOpportunities',
+          'opportunities'
+        ], 2);
+        
+        // Combine all opportunities or use global collection
+        const combined = [
+          ...(allData.sourceBottleOpportunities || []),
+          ...(allData.qwotedOpportunities || []),
+          ...(allData.featuredOpportunities || [])
+        ];
+        
+        // Return combined or fall back to global opportunities
+        return combined.length > 0 ? combined : (allData.opportunities || []);
+      } else {
+        console.log('Storage cache not available, using direct storage');
+        // Fallback to direct storage
+        return new Promise(resolve => {
+          chrome.storage.local.get([
+            'sourceBottleOpportunities', 
+            'qwotedOpportunities', 
+            'featuredOpportunities',
+            'opportunities'
+          ], result => {
+            console.log('Direct storage result:', result);
+            
+            // Combine all opportunities or use global collection
+            const combined = [
+              ...(result.sourceBottleOpportunities || []),
+              ...(result.qwotedOpportunities || []),
+              ...(result.featuredOpportunities || [])
+            ];
+            
+            resolve(combined.length > 0 ? combined : (result.opportunities || []));
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error in getCachedOpportunities:', error);
+      // Ultimate fallback to direct storage
+      return new Promise(resolve => {
+        chrome.storage.local.get(['opportunities'], result => {
+          resolve(result.opportunities || []);
+        });
+      });
+    }
+  }
+
+  async function getCachedSettings() {
+    if (window.storageCache) {
+      return await window.storageCache.get('settings', 10);
+    } else {
+      // Fallback to direct storage
+      return new Promise(resolve => {
+        chrome.storage.local.get(['settings'], result => {
+          resolve(result.settings || {});
+        });
+      });
+    }
+  }
+
   // Load opportunities from storage
-  function loadOpportunities() {
+  async function loadOpportunities() {
     const opportunitiesList = document.getElementById('opportunities-list');
     if (!opportunitiesList) {
       console.error('Opportunities list element not found');
       return;
     }
     
-    chrome.storage.local.get(['sourceBottleOpportunities'], function(result) {
-      const opportunities = result.sourceBottleOpportunities || [];
+    try {
+      const opportunities = await getCachedOpportunities();
       
       // Show/hide container based on whether there are opportunities
       const container = document.getElementById('opportunities-container');
@@ -422,7 +550,13 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error('Error creating opportunity card:', error);
         }
       });
-    });
+    } catch (error) {
+      console.error('Error in loadOpportunities:', error);
+      // Show error message to user
+      if (opportunitiesList) {
+        opportunitiesList.innerHTML = '<div class="error-message">Error loading opportunities. Please try again.</div>';
+      }
+    }
   }
   
   // Open settings page
@@ -431,9 +565,9 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Export opportunities to CSV
-  function exportToCSV() {
-    chrome.storage.local.get(['sourceBottleOpportunities'], function(result) {
-      const opportunities = result.sourceBottleOpportunities || [];
+  async function exportToCSV() {
+    try {
+      const opportunities = await getCachedOpportunities();
       
       // Create CSV content
       let csvContent = "data:text/csv;charset=utf-8,";
@@ -454,13 +588,16 @@ document.addEventListener('DOMContentLoaded', function() {
       // Trigger download
       link.click();
       document.body.removeChild(link);
-    });
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      setDebugStatus('Error exporting opportunities to CSV.', true);
+    }
   }
   
   // Export opportunities to Google Sheets
-  function exportToSheets() {
-    chrome.storage.local.get(['sourceBottleOpportunities'], function(result) {
-      const opportunities = result.sourceBottleOpportunities || [];
+  async function exportToSheets() {
+    try {
+      const opportunities = await getCachedOpportunities();
       
       // Map opportunities to match the Google Sheet columns exactly
       const mapped = opportunities.map(op => ({
@@ -500,7 +637,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Still show next steps even on error
         showNextSteps();
       });
-    });
+    } catch (error) {
+      console.error('Error exporting to Google Sheets:', error);
+      setDebugStatus('Error exporting opportunities to Google Sheets.', true);
+    }
   }
   
   // Function to create opportunity card with AI analysis

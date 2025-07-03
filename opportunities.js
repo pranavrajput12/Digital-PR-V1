@@ -1,6 +1,7 @@
 // Declare variables at the global scope so showAIAnalysis can access them
 let allOpportunities = [];
 let filteredOpportunities = [];
+let aiProcessing = false;
 
 // Listen for notification sound requests from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -110,35 +111,61 @@ class EventListenerManager {
 // Global event listener manager
 const eventManager = new EventListenerManager();
 
-// Function to play notification sound using base64-encoded audio
+// Function to play notification sound - longer pleasant chime sequence
 function playNotificationSound() {
   try {
     // Create audio context if not already created
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const audioContext = new AudioContext();
     
-    // Create oscillator for beep sound
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+    // Create a pleasant 3-tone chime sequence (C-E-G major chord arpeggiated)
+    const frequencies = [523.25, 659.25, 783.99]; // C5, E5, G5
+    const noteDuration = 0.4; // Each note lasts 400ms
+    const totalDuration = frequencies.length * noteDuration;
     
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 1000; // 1000Hz frequency
-    gainNode.gain.value = 0.1; // 10% volume
+    frequencies.forEach((frequency, index) => {
+      // Create oscillator and gain node for each note
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      // Connect the nodes
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Set the frequency
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      oscillator.type = 'sine'; // Smooth sine wave for pleasant sound
+      
+      // Calculate timing for this note
+      const startTime = audioContext.currentTime + (index * noteDuration);
+      const endTime = startTime + noteDuration;
+      
+      // Set volume envelope (attack, sustain, release)
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(0.15, startTime + 0.05); // Quick attack
+      gainNode.gain.setValueAtTime(0.15, startTime + 0.2); // Sustain
+      gainNode.gain.exponentialRampToValueAtTime(0.01, endTime); // Smooth decay
+      
+      // Start and stop the oscillator
+      oscillator.start(startTime);
+      oscillator.stop(endTime);
+      
+      // Clean up after the note finishes
+      setTimeout(() => {
+        oscillator.disconnect();
+        gainNode.disconnect();
+      }, (endTime - audioContext.currentTime) * 1000 + 100);
+    });
     
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Play the sound
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.1); // 100ms beep
-    
-    // Clean up
-    setTimeout(() => {
-      oscillator.disconnect();
-      gainNode.disconnect();
-    }, 150);
+    console.log(`🔊 Playing notification chime (${totalDuration.toFixed(1)}s)`);
   } catch (error) {
     console.warn('Could not play notification sound:', error);
+    // Fallback to browser beep if available
+    try {
+      console.log('\x07'); // ASCII bell character
+    } catch (e) {
+      console.warn('No fallback notification available');
+    }
   }
 }
 
@@ -185,38 +212,56 @@ function initializeApp() {
   // Initialize other variables
   let currentPage = 1;
   const itemsPerPage = 12;
-  let aiProcessing = false;
   let lastOpportunityCount = 0; // Track the last count of opportunities for new item detection
   
   // Set up the AI service for opportunity processing
   let aiService = null;
+  let aiServiceInitialized = false;
+  let aiServiceInitializing = false;
   
-  // Initialize the AI service once it's available
-  function initializeAIService() {
-    // Check if aiService is available in global scope (from loaded script)
-    if (window.aiService) {
-      aiService = window.aiService;
-      console.log('AI service found in global scope');
-      
-      // Initialize AI service
-      aiService.initialize().then(initialized => {
+  // Initialize the AI service once it's available with race condition protection
+  async function initializeAIService() {
+    // Prevent concurrent initialization
+    if (aiServiceInitializing || aiServiceInitialized) {
+      return aiServiceInitialized;
+    }
+    
+    aiServiceInitializing = true;
+    
+    try {
+      // Check if aiService is available in global scope (from loaded script)
+      if (window.aiService) {
+        aiService = window.aiService;
+        console.log('AI service found in global scope');
+        
+        // Initialize AI service with proper await
+        const initialized = await aiService.initialize();
         if (initialized) {
           console.log('AI service initialized successfully');
+          aiServiceInitialized = true;
+          
           // Re-process opportunities with AI if needed
           if (allOpportunities.length > 0) {
-            processOpportunitiesWithAI();
+            // Don't await this to avoid blocking
+            processOpportunitiesWithAI().catch(err => {
+              console.error('Error processing opportunities with AI:', err);
+            });
           }
         }
-      }).catch(err => {
-        console.error('Error initializing AI service:', err);
-        // Continue with normal operation even if AI fails
+      } else {
+        console.error('AI service not available in global scope');
+        // Continue with normal operation even if AI is not available
         initializeView();
-      });
-    } else {
-      console.error('AI service not available in global scope');
-      // Continue with normal operation even if AI is not available
+      }
+    } catch (err) {
+      console.error('Error initializing AI service:', err);
+      // Continue with normal operation even if AI fails
       initializeView();
+    } finally {
+      aiServiceInitializing = false;
     }
+    
+    return aiServiceInitialized;
   }
   
   // Try to initialize after a short delay to ensure scripts are loaded
@@ -303,9 +348,7 @@ function initializeApp() {
     }
   }
   
-  // Check if we should automatically run AI analysis (from URL parameter)
-  const urlParams = new URLSearchParams(window.location.search);
-  const autoAnalyze = urlParams.get('analyze') === 'true';
+  // Auto AI analysis removed - user must click "Do AI analysis" button manually
   
   // Filter input event listeners - with null checks
   const deadlineFilter = document.getElementById('deadline-filter');
@@ -336,13 +379,13 @@ function initializeApp() {
   }
   
   // Load ALL opportunities from storage (both SourceBottle and any others that might be stored)
-  loadOpportunities(autoAnalyze);
+  loadOpportunities(); // Never auto-trigger AI analysis
   
   // Add test notification button functionality
   const testNotificationBtn = document.getElementById('test-notification-btn');
   if (testNotificationBtn) {
     eventManager.add(testNotificationBtn, 'click', () => {
-      showNotification('This is a test notification!', 'success');
+      showNotification('🔊 Testing new notification chime - Listen for the pleasant 3-tone sequence!', 'success');
     });
   }
   
@@ -410,7 +453,7 @@ function initializeApp() {
     }
   }
   
-  function loadOpportunities(triggerAiAnalysis = false) {
+  function loadOpportunities() {
     chrome.storage.local.get(null, function(result) {
       // Try to get opportunities from multiple possible storage keys
       allOpportunities = [];
@@ -424,6 +467,12 @@ function initializeApp() {
         }));
         allOpportunities = allOpportunities.concat(sourceBottleOps);
         console.log(`Found ${sourceBottleOps.length} SourceBottle opportunities`);
+        
+        // Debug: Check if publication/journalist data exists
+        if (sourceBottleOps.length > 0) {
+          console.log('🔍 [DEBUG] Sample SourceBottle opportunity:', sourceBottleOps[0]);
+          console.log('🔍 [DEBUG] Fields present:', Object.keys(sourceBottleOps[0]));
+        }
       }
       
       // Check for qwotedOpportunities
@@ -435,6 +484,13 @@ function initializeApp() {
         }));
         allOpportunities = allOpportunities.concat(qwotedOps);
         console.log(`Found ${qwotedOps.length} Qwoted opportunities`);
+        
+        // Debug: Check if mediaOutlet data exists
+        if (qwotedOps.length > 0) {
+          console.log('🔍 [DEBUG] Sample Qwoted opportunity:', qwotedOps[0]);
+          console.log('🔍 [DEBUG] Has mediaOutlet?', !!qwotedOps[0].mediaOutlet);
+          console.log('🔍 [DEBUG] Has brandName?', !!qwotedOps[0].brandName);
+        }
       }
       
       // Check for featuredOpportunities
@@ -446,6 +502,13 @@ function initializeApp() {
         }));
         allOpportunities = allOpportunities.concat(featuredOps);
         console.log(`Found ${featuredOps.length} Featured opportunities`);
+        
+        // Debug: Check if publication data exists
+        if (featuredOps.length > 0) {
+          console.log('🔍 [DEBUG] Sample Featured opportunity:', featuredOps[0]);
+          console.log('🔍 [DEBUG] Has publication?', !!featuredOps[0].publication);
+          console.log('🔍 [DEBUG] Fields:', Object.keys(featuredOps[0]));
+        }
       }
       
       // Check if we have the generic 'opportunities' key (for backwards compatibility)
@@ -499,12 +562,8 @@ function initializeApp() {
       // First always initialize the view to show opportunities
       initializeView();
       
-      // Then try to process with AI in the background
-      if (aiService && typeof aiService.isEnabled === 'function') {
-        if (triggerAiAnalysis) {
-          processOpportunitiesWithAI();
-        }
-      }
+      // AI analysis only runs when user clicks "Do AI analysis" button
+      // Auto-trigger removed to prevent unwanted processing
     });
   }
   
@@ -622,7 +681,7 @@ function initializeApp() {
   }
 
   // Manual AI analysis function (triggered by button)
-  function manualAIAnalysis() {
+  async function manualAIAnalysis() {
     if (aiProcessing) {
       // Already processing, don't start again
       return;
@@ -648,15 +707,10 @@ function initializeApp() {
       }, 2000);
     }, 100);
     
-    // Check if AI service is available
-    if (!aiService) {
-      // Try to import the AI service from window global
-      console.log('Trying to get AI service from window global');
-      aiService = window.aiService;
-      
-      if (!aiService) {
-        console.error('AI service not available');
-        
+    // Check if AI service is available and initialize it properly
+    try {
+      const initialized = await initializeAIService();
+      if (!initialized) {
         // Show notification to configure API key
         const notification = document.createElement('div');
         notification.className = 'ai-notification warning';
@@ -676,6 +730,9 @@ function initializeApp() {
         }, 100);
         return;
       }
+    } catch (err) {
+      console.error('Error initializing AI service for manual analysis:', err);
+      return;
     }
     
     // Check if the AI service has the processOpportunities method
@@ -823,8 +880,9 @@ function initializeApp() {
       return;
     }
     
-    // AI service exists, check if it's initialized
-    aiService.initialize().then(initialized => {
+    // AI service exists, check if it's initialized with proper race condition handling
+    try {
+      const initialized = await initializeAIService();
       if (initialized) {
         processOpportunitiesWithAI();
       } else {
@@ -846,7 +904,7 @@ function initializeApp() {
           }, 3000);
         }, 100);
       }
-    }).catch(err => {
+    } catch (err) {
       console.error('Error initializing AI service:', err);
       
       // Show error notification
@@ -866,7 +924,7 @@ function initializeApp() {
           }, 500);
         }, 3000);
       }, 100);
-    });
+    }
   }
   
   function initializeView() {
@@ -1010,17 +1068,17 @@ function initializeApp() {
       let passesFilters = true;
       
       // Platform filter
-      const sourceString = (opportunity.source || 'SourceBottle').toLowerCase();
+      const sourceString = (opportunity.source || opportunity.platform || 'SourceBottle').toLowerCase().replace(/\s+/g, '');
       let platformPasses = false;
       
       // Check each enabled platform
-      if (filters.platforms.SourceBottle && (sourceString.includes('sourcebottle') || sourceString === 'sourcebottle')) {
+      if (filters.platforms.SourceBottle && sourceString.includes('sourcebottle')) {
         platformPasses = true;
       }
-      if (filters.platforms.Featured && (sourceString.includes('featured') || sourceString === 'featured')) {
+      if (filters.platforms.Featured && sourceString.includes('featured')) {
         platformPasses = true;
       }
-      if (filters.platforms.Qwoted && (sourceString.includes('qwoted') || sourceString === 'qwoted')) {
+      if (filters.platforms.Qwoted && sourceString.includes('qwoted')) {
         platformPasses = true;
       }
       
@@ -1093,9 +1151,14 @@ function initializeApp() {
         passesFilters = passesFilters && (hasMatchingKeyword || contentMatch);
       }
       
-      // Media outlet filter
-      if (filters.mediaOutlet && opportunity.mediaOutlet) {
-        passesFilters = passesFilters && opportunity.mediaOutlet.toLowerCase().includes(filters.mediaOutlet);
+      // Media outlet filter - use platform-aware field mapping
+      if (filters.mediaOutlet) {
+        const outletName = getOutletName(opportunity);
+        if (outletName && outletName !== 'Media outlet not available') {
+          passesFilters = passesFilters && outletName.toLowerCase().includes(filters.mediaOutlet);
+        } else {
+          passesFilters = false; // No outlet data available
+        }
       }
       
       // Journalist filter
@@ -1103,15 +1166,15 @@ function initializeApp() {
         passesFilters = passesFilters && opportunity.journalist.toLowerCase().includes(filters.journalist);
       }
       
-      // Search filter (search across all fields)
+      // Search filter (search across all fields) - use platform-aware mapping
       if (filters.search) {
         const searchText = filters.search.toLowerCase();
         const searchInFields = [
-          opportunity.title || '',
-          opportunity.description || '',
+          getFieldValue(opportunity, 'title') || opportunity.title || '',
+          getFieldValue(opportunity, 'description') || opportunity.description || '',
           opportunity.category || '',
-          opportunity.mediaOutlet || '',
-          opportunity.journalist || '',
+          getOutletName(opportunity) || '',
+          opportunity.journalist || opportunity.journalistType || '',
           ...(opportunity.keywords || [])
         ].map(field => field.toLowerCase());
         
@@ -1154,6 +1217,107 @@ function initializeApp() {
     applyFilters();
   }
   
+  // Field mappings for each platform
+  const FIELD_MAPPINGS = {
+    'sourcebottle': {
+      title: 'title',
+      description: 'description',
+      outlet: 'publication',
+      journalistInfo: 'journalistType',
+      deadline: 'deadline'
+    },
+    'featured': {
+      title: 'question',        // Featured uses 'question' instead of 'title'
+      description: 'question',  // Same field for description
+      outlet: 'publication',    // Featured has 'publication' field
+      deadline: 'closeDate'     // Featured has 'closeDate' for absolute dates
+    },
+    'qwoted': {
+      title: 'title',
+      description: 'description', 
+      outlet: 'mediaOutlet',    // Qwoted uses 'mediaOutlet'
+      brandName: 'brandName',   // Additional outlet info
+      deadline: 'deadline'
+    }
+  };
+
+  // Function to get the correct field value based on platform
+  function getFieldValue(opportunity, displayField) {
+    const rawPlatform = opportunity.source || opportunity.platform || 'SourceBottle';
+    const platform = rawPlatform.toLowerCase().replace(/\s+/g, '');
+    
+    const mapping = FIELD_MAPPINGS[platform];
+    
+    if (!mapping) {
+      // Fallback to direct property access
+      console.log(`🔍 [FIELD MAPPING] No mapping found for platform: ${platform}, using direct access for field: ${displayField}`);
+      return opportunity[displayField] || null;
+    }
+    
+    const actualField = mapping[displayField];
+    if (!actualField) {
+      // No mapping for this display field
+      return opportunity[displayField] || null;
+    }
+    
+    const value = opportunity[actualField] || null;
+    
+    // Debug logging for all missing values, not just title
+    if (!value) {
+      console.log(`🔍 [FIELD MAPPING] Missing ${displayField} for platform ${platform}:`, {
+        displayField: displayField,
+        actualField: actualField,
+        mappingValue: mapping[displayField],
+        opportunityKeys: Object.keys(opportunity),
+        opportunitySourceField: opportunity[actualField]
+      });
+    }
+    
+    return value;
+  }
+
+  // Function to get outlet name with platform-specific fallbacks
+  function getOutletName(opportunity) {
+    const rawPlatform = opportunity.source || opportunity.platform || 'SourceBottle';
+    const platform = rawPlatform.toLowerCase().replace(/\s+/g, '');
+    
+    // Debug what we're receiving (reduce logging by checking first)
+    if (!opportunity.publication && !opportunity.mediaOutlet && !opportunity.brandName) {
+      console.log(`🔍 [getOutletName] No outlet data found:`, {
+        platform: platform,
+        source: opportunity.source,
+        fields: Object.keys(opportunity)
+      });
+    }
+    
+    let result;
+    switch(platform) {
+      case 'sourcebottle':
+        result = opportunity.publication || 'Media outlet not available';
+        break;
+      case 'featured':
+        result = opportunity.publication || 'Media outlet not available';
+        break;
+      case 'qwoted':
+        result = opportunity.mediaOutlet || opportunity.brandName || 'Media outlet not available';
+        break;
+      default:
+        result = opportunity.publication || opportunity.mediaOutlet || 'Media outlet not available';
+    }
+    
+    // Debug logging for missing outlets
+    if (result === 'Media outlet not available') {
+      console.log(`🔍 [OUTLET MAPPING] Missing outlet for platform ${platform}:`, {
+        publication: opportunity.publication,
+        mediaOutlet: opportunity.mediaOutlet,
+        brandName: opportunity.brandName,
+        opportunity: opportunity
+      });
+    }
+    
+    return result;
+  }
+
   function renderOpportunities() {
     if (filteredOpportunities.length === 0) {
       opportunitiesContainer.innerHTML = '<div class="no-opportunities">No opportunities found for the selected filters.</div>';
@@ -1167,12 +1331,19 @@ function initializeApp() {
     const endIndex = Math.min(startIndex + itemsPerPage, filteredOpportunities.length);
     const currentItems = filteredOpportunities.slice(startIndex, endIndex);
     
+    // Create document fragment for better performance
+    const fragment = document.createDocumentFragment();
+    const cardsToProcess = [];
+    
     currentItems.forEach(opp => {
       try {
         if (!opp || typeof opp !== 'object') {
           console.error('Invalid opportunity object:', opp);
           return; // Skip this invalid opportunity
         }
+        
+        // Get source first (needed for debugging)
+        const source = opp.source || 'SourceBottle';
         
         // Create category class (for CSS)
         const category = opp.category || 'General';
@@ -1181,9 +1352,23 @@ function initializeApp() {
         // Format date with error handling
         let formattedDate = 'Unknown';
         try {
-          if (opp.deadline) {
+          // Get deadline using platform-aware mapping
+          const deadlineValue = getFieldValue(opp, 'deadline') || opp.deadline || opp.closeDate;
+          
+          // Debug what we actually got
+          if (!deadlineValue || deadlineValue === 'closeDate' || deadlineValue === 'deadline') {
+            console.error(`🚨 DEADLINE ERROR for ${source}:`, {
+              deadlineValue: deadlineValue,
+              oppDeadline: opp.deadline,
+              oppCloseDate: opp.closeDate,
+              allFields: Object.keys(opp),
+              fullOpp: opp
+            });
+          }
+          
+          if (deadlineValue && deadlineValue !== 'closeDate' && deadlineValue !== 'deadline') {
             // Check for valid date format
-            const deadlineDate = new Date(opp.deadline);
+            const deadlineDate = new Date(deadlineValue);
             
             // Check if date is valid (not NaN)
             if (!isNaN(deadlineDate.getTime())) {
@@ -1192,23 +1377,37 @@ function initializeApp() {
                 month: 'short',
                 day: 'numeric'
               });
-            } else if (typeof opp.deadline === 'string') {
+            } else if (typeof deadlineValue === 'string') {
               // If it's a string but not a valid date, just show the string
-              formattedDate = opp.deadline;
+              formattedDate = deadlineValue;
             }
           }
         } catch (e) {
           console.error('Error formatting date:', e, 'Raw deadline value:', opp.deadline);
           // Use the raw value as a fallback
-          formattedDate = opp.deadline || 'Unknown';
+          formattedDate = opp.deadline || opp.closeDate || 'Unknown';
         }
         
-        // Safe access to properties with fallbacks
-        const title = opp.title || 'Untitled Opportunity';
-        const description = opp.description || 'No description available';
-        const source = opp.source || 'SourceBottle';
-        const mediaOutlet = opp.mediaOutlet || 'Not specified';
-        const journalist = opp.journalist || 'Not specified';
+        // Platform-aware field access with debugging
+        const title = getFieldValue(opp, 'title') || opp.title || 'Untitled Opportunity';
+        const description = getFieldValue(opp, 'description') || opp.description || 'No description available';
+        const mediaOutlet = getOutletName(opp);
+        const journalist = opp.journalist || opp.journalistType || 'Not specified';
+        
+        // Debug logging only for opportunities with missing data
+        if (title === 'Untitled Opportunity' || mediaOutlet === 'Media outlet not available') {
+          console.log(`🔍 [FIELD MAPPING DEBUG] Missing data for ${source}:`, {
+            originalFields: {
+              title: opp.title,
+              question: opp.question,
+              publication: opp.publication,
+              mediaOutlet: opp.mediaOutlet,
+              source: opp.source
+            },
+            mappedTitle: title,
+            mappedOutlet: mediaOutlet
+          });
+        }
         
         // For the View Opportunity button, determine the correct URL to use
         let viewUrl = '#';
@@ -1284,19 +1483,37 @@ function initializeApp() {
           </div>
         `;
         
-        // Add the card to the container
-        opportunitiesContainer.appendChild(card);
+        // Add the card to the fragment instead of directly to DOM
+        fragment.appendChild(card);
         
-        // Add event listeners to buttons in this card
-        const aiViewButton = card.querySelector('.ai-view-button');
-        if (aiViewButton) {
-          aiViewButton.addEventListener('click', function() {
-            const opportunityId = this.getAttribute('data-opportunity-id');
-            showAIAnalysis(opportunityId);
-          });
-        }
+        // Store card for later event listener attachment
+        cardsToProcess.push(card);
       } catch (error) {
         console.error('Error rendering opportunity:', error, opp);
+      }
+    });
+    
+    // Append the fragment to the DOM all at once for better performance
+    opportunitiesContainer.appendChild(fragment);
+    
+    // Attach event listeners to the cards after they've been added to the DOM
+    cardsToProcess.forEach(card => {
+      // Add event listeners to AI view buttons
+      const aiViewButton = card.querySelector('.ai-view-button');
+      if (aiViewButton) {
+        aiViewButton.addEventListener('click', function() {
+          const opportunityId = this.dataset.opportunityId;
+          showAIAnalysis(opportunityId);
+        });
+      }
+      
+      // Add event listeners to save buttons
+      const saveButton = card.querySelector('.save-button');
+      if (saveButton) {
+        saveButton.addEventListener('click', function() {
+          // Save functionality would go here
+          console.log('Save button clicked');
+        });
       }
     });
   }
@@ -1632,18 +1849,59 @@ function clearAllOpportunities() {
       // Stop any ongoing AI processing
       aiProcessing = false;
       
-      // Clear all opportunity data from storage
-      chrome.storage.local.remove([
+      // Clear all opportunity data from storage - comprehensive cleanup
+      const keysToRemove = [
+        // Platform-specific opportunity keys
         'sourceBottleOpportunities',
         'featuredOpportunities',
         'qwotedOpportunities',
+        
+        // Legacy/generic keys
         'opportunities',
-        'aiProcessedOpportunities', // Also clear any AI processed data
-        'aiCache' // Clear AI cache if it exists
-      ], function() {
-        // Check for any error
-        if (chrome.runtime.lastError) {
-          console.error('Error clearing opportunities:', chrome.runtime.lastError);
+        'aiProcessedOpportunities',
+        
+        // Cache and processing keys
+        'aiCache',
+        'processedOpportunities',
+        'cachedOpportunities',
+        'opportunitiesCache',
+        
+        // Related data that should be cleared
+        'lastScrapeTime',
+        'scrapeHistory',
+        'extensionStats',
+        'processingQueue',
+        'failedOpportunities',
+        'extensionData',
+        'scrapedData'
+      ];
+      
+      console.log('🧹 Clearing all opportunity data:', keysToRemove);
+      
+      // First clear the unified cache to prevent it from reloading data
+      if (window.unifiedCache && typeof window.unifiedCache.clearAll === 'function') {
+        window.unifiedCache.clearAll();
+        console.log('Pre-cleared unified cache system');
+      } else {
+        console.log('Unified cache not available, proceeding with direct storage clear');
+      }
+      
+      // Also do a comprehensive storage scan to remove any opportunity-related data
+      chrome.storage.local.get(null, function(allData) {
+        const opportunityKeys = Object.keys(allData).filter(key => 
+          key.toLowerCase().includes('opportunit') || 
+          key.toLowerCase().includes('scrape') ||
+          key.toLowerCase().includes('cache') ||
+          key.toLowerCase().includes('processed')
+        );
+        
+        console.log('Found additional opportunity-related keys:', opportunityKeys);
+        const allKeysToRemove = [...new Set([...keysToRemove, ...opportunityKeys])];
+        
+        chrome.storage.local.remove(allKeysToRemove, function() {
+          // Check for any error
+          if (chrome.runtime.lastError) {
+            console.error('Error clearing opportunities:', chrome.runtime.lastError);
           
           // Show error notification
           const notification = document.createElement('div');
@@ -1675,6 +1933,18 @@ function clearAllOpportunities() {
         // Reset the opportunity arrays and ensure they're brand new arrays
         allOpportunities = [];
         filteredOpportunities = [];
+        
+        // Clear unified cache system if available
+        if (window.unifiedCache && typeof window.unifiedCache.clearAll === 'function') {
+          window.unifiedCache.clearAll();
+          console.log('Cleared unified cache system');
+        }
+        
+        // Clear individual caches if they exist
+        if (window.storageCache && typeof window.storageCache.clear === 'function') {
+          window.storageCache.clear();
+          console.log('Cleared storage cache');
+        }
         
         // Cancel any in-progress AI operations
         if (window.aiService && typeof window.aiService.cancelOperations === 'function') {
@@ -1732,6 +2002,26 @@ function clearAllOpportunities() {
         if (analyzedCountEl) analyzedCountEl.textContent = '0';
         if (highPriorityCountEl) highPriorityCountEl.textContent = '0';
         if (highRelevanceCountEl) highRelevanceCountEl.textContent = '0';
+        
+        // Verify clearing worked by checking storage again
+        chrome.storage.local.get(keysToRemove, function(remainingData) {
+          const remainingKeys = Object.keys(remainingData).filter(key => 
+            remainingData[key] && (Array.isArray(remainingData[key]) ? remainingData[key].length > 0 : true)
+          );
+          
+          if (remainingKeys.length > 0) {
+            console.warn('⚠️ Some data may still remain after clearing:', remainingKeys, remainingData);
+          } else {
+            console.log('✅ All opportunity data successfully cleared and verified');
+          }
+          
+            // Force a complete reload of opportunities from storage to ensure UI is updated
+            setTimeout(() => {
+              console.log('🔄 Reloading opportunities after clear to verify UI update');
+              loadOpportunities();
+            }, 100);
+          });
+        });
       });
     }
   }

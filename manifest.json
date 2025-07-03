@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Multi-Platform PR Opportunities Tracker",
-  "version": "1.2.0",
-  "description": "Track and manage media opportunities from SourceBottle, Featured.com, and Qwoted",
+  "name": "PRess & Impress - Media Opportunity Hunter",
+  "short_name": "PRess & Impress",
+  "version": "2.0.0",
+  "description": "🎯 Hunt PR opportunities like a pro! Track media queries from SourceBottle, Featured.com, and Qwoted with AI-powered insights.",
   "author": "Pranav Rajput",
   "permissions": [
     "storage",
     "tabs",
     "alarms",
-    "webRequest",
     "scripting",
     "windows",
     "notifications",
@@ -23,8 +23,7 @@
     "https://api.openai.com/*"
   ],
   "background": {
-    "service_worker": "background_module.js",
-    "type": "module"
+    "service_worker": "background_module.js"
   },
   "content_scripts": [
     {
@@ -43,18 +42,23 @@
       ],
       "js": [
         "content-scripts/featured_globals.js",
-        "modules/scrapers/featured-scraper-clean.js",
+        "modules/scrapers/featured-scraper.js",
         "content-scripts/featured_content_launcher.js"
       ],
       "run_at": "document_idle"
     },
     {
       "matches": [
-        "https://featured.com/questions*",
-        "https://featured.com/experts/questions*"
+        "https://app.qwoted.com/opportunities*",
+        "https://app.qwoted.com/source_requests*"
       ],
-      "js": ["content-scripts/featured_content_launcher_optimized.js"],
-      "run_at": "document_end"
+      "js": [
+        "content-scripts/qwoted_bridge.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "match_about_blank": false,
+      "world": "ISOLATED"
     },
     {
       "matches": [
@@ -65,17 +69,6 @@
         "content-scripts/qwoted_content_launcher.js"
       ],
       "run_at": "document_start",
-      "all_frames": false,
-      "match_about_blank": false,
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://app.qwoted.com/opportunities*",
-        "https://app.qwoted.com/source_requests*"
-      ],
-      "js": ["content-scripts/qwoted_diagnostic_launcher.js"],
-      "run_at": "document_end",
       "all_frames": false,
       "match_about_blank": false,
       "world": "MAIN"
@@ -117,6 +110,6 @@
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'self' data: https:; connect-src 'self' https://api.openai.com https://script.google.com https://script.googleusercontent.com; style-src 'self' 'unsafe-inline'"
   }
 }

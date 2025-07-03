@@ -6,14 +6,9 @@
  * @requires KeywordManager for externalized keyword group configuration
  */
 
-/**
- * AI Service Module for SourceBottle Extension
- * Uses window globals for Chrome Extension CSP compliance
- * Requires promptTemplates.js to be loaded first
- */
-
-// Use the existing PromptTemplates from window global
-// This avoids duplicate declarations
+// Import dependencies
+import { logManager } from './logger.js';
+import { PromptTemplates } from './promptTemplates.js';
 
 /**
  * Helper function for template rendering
@@ -56,6 +51,15 @@ class AIService {
     // Model configuration
     this.modelTemperature = 0.7;
     this.modelMaxTokens = 2000;
+
+    // Circuit breaker pattern for API failures
+    this.circuitBreaker = {
+      failures: 0,
+      threshold: 5,
+      timeout: 300000, // 5 minutes
+      state: 'CLOSED', // CLOSED, OPEN, HALF_OPEN
+      nextAttempt: 0
+    };
     
     // Configuration defaults for scoring thresholds
     this.config = {
@@ -157,7 +161,7 @@ class AIService {
   }
   
   /**
-   * Initialize the AI service
+   * Initialize the AI service with proper race condition handling
    * @returns {Promise<boolean>} True if initialization was successful
    */
   async initialize() {
@@ -171,20 +175,26 @@ class AIService {
       return this._initializationPromise;
     }
     
-    // Start initialization and cache the promise
+    // Double-check pattern to prevent race conditions
+    if (this._initialized) {
+      return true;
+    }
+    
+    // Start initialization and cache the promise atomically
     this._initializationPromise = this._doInitialize();
     
     try {
       // Wait for initialization to complete
       const result = await this._initializationPromise;
       
-      // Clear the cached promise
+      // Clear the cached promise only after successful completion
       this._initializationPromise = null;
       
       return result;
     } catch (error) {
-      // Clear the cached promise on error
+      // Clear the cached promise on error to allow retry
       this._initializationPromise = null;
+      this._initialized = false; // Reset state on error
       throw error;
     }
   }
@@ -380,14 +390,10 @@ class AIService {
    */
   async checkSemanticSimilarity(text, canonicalThemes = []) {
     try {
-      // Ensure the service is initialized
-      if (!this._initialized) {
-        await this.initialize();
-      }
-      
-      // If still not initialized, return default result with error
-      if (!this._initialized) {
-        const error = new Error('AI service not initialized');
+      // Ensure the service is initialized with proper await
+      const initialized = await this.initialize();
+      if (!initialized) {
+        const error = new Error('AI service initialization failed');
         console.error(error);
         return {
           isSimilar: false,
@@ -468,14 +474,10 @@ class AIService {
    */
   async classifyOpportunity(opportunity) {
     try {
-      // Ensure the service is initialized
-      if (!this._initialized) {
-        await this.initialize();
-      }
-      
-      // If still not initialized, return default with error
-      if (!this._initialized) {
-        throw new Error('AI service not initialized');
+      // Ensure the service is initialized with proper await
+      const initialized = await this.initialize();
+      if (!initialized) {
+        throw new Error('AI service initialization failed');
       }
       
       // Check if we have a classifier
@@ -537,6 +539,24 @@ class AIService {
   }
   
   /**
+   * Extract features from an opportunity for classification
+   * @param {Object} opportunity - The opportunity to extract features from
+   * @returns {Object} Feature vector
+   * @private
+   */
+  _extractFeatures(opportunity) {
+    // Extract basic features for classification
+    return {
+      titleLength: (opportunity.title || '').length,
+      descriptionLength: (opportunity.description || '').length,
+      hasDeadline: !!opportunity.deadline,
+      hasMediaOutlet: !!opportunity.mediaOutlet,
+      hasJournalist: !!opportunity.journalist,
+      combinedText: `${opportunity.title || ''} ${opportunity.description || ''}`.toLowerCase()
+    };
+  }
+
+  /**
    * Train the classifier with the current training dataset
    * @param {number} epochs - Number of training epochs
    * @returns {Promise<{success: boolean, error: string?}>}
@@ -574,6 +594,15 @@ class AIService {
    * @private
    */
   async _post(payload, maxRetries = 3) {
+    // Check circuit breaker state
+    if (this.circuitBreaker.state === 'OPEN') {
+      if (Date.now() < this.circuitBreaker.nextAttempt) {
+        throw new Error('AI service temporarily unavailable (circuit breaker open)');
+      } else {
+        this.circuitBreaker.state = 'HALF_OPEN';
+      }
+    }
+
     let retries = 0;
     let lastError = null;
     
@@ -609,7 +638,13 @@ class AIService {
         }
         
         // Parse and return the response
-        return await response.json();
+        const result = await response.json();
+        
+        // Success - reset circuit breaker
+        this.circuitBreaker.failures = 0;
+        this.circuitBreaker.state = 'CLOSED';
+        
+        return result;
       } catch (error) {
         lastError = error;
         
@@ -635,6 +670,14 @@ class AIService {
       }
     }
     
+    // Update circuit breaker on failure
+    this.circuitBreaker.failures++;
+    if (this.circuitBreaker.failures >= this.circuitBreaker.threshold) {
+      this.circuitBreaker.state = 'OPEN';
+      this.circuitBreaker.nextAttempt = Date.now() + this.circuitBreaker.timeout;
+      console.warn('AI service circuit breaker opened due to repeated failures');
+    }
+    
     // If we've exhausted all retries, throw the last error
     throw lastError || new Error('Failed to make Azure OpenAI request after multiple retries');
   }
@@ -647,12 +690,10 @@ class AIService {
    */
   async analyzeOpportunity(opportunity, promptType = 'prioritize') {
     try {
-      // Ensure the service is initialized
-      if (!this._initialized) {
-        const initialized = await this.initialize();
-        if (!initialized) {
-          throw new Error('AI service not initialized');
-        }
+      // Ensure the service is initialized with proper await
+      const initialized = await this.initialize();
+      if (!initialized) {
+        throw new Error('AI service initialization failed');
       }
       
       // Get the appropriate prompt based on analysis type
@@ -696,12 +737,10 @@ class AIService {
    */
   async analyzeSentiment(text) {
     try {
-      // Ensure the service is initialized
-      if (!this._initialized) {
-        const initialized = await this.initialize();
-        if (!initialized) {
-          throw new Error('AI service not initialized');
-        }
+      // Ensure the service is initialized with proper await
+      const initialized = await this.initialize();
+      if (!initialized) {
+        throw new Error('AI service initialization failed');
       }
       
       // Prepare the request payload
@@ -865,6 +904,7 @@ class AIService {
               error: e.message
             };
           }
+          break;
           
         case 'categorize':
           return {
@@ -873,6 +913,7 @@ class AIService {
               .filter(Boolean)
               .slice(0, 5) // Limit to 5 categories
           };
+          break;
           
         default:
           return { 
@@ -895,19 +936,17 @@ class AIService {
    */
   async processOpportunities(opportunities) {
     try {
-      // Ensure the service is initialized
-      if (!this._initialized) {
-        const initialized = await this.initialize();
-        if (!initialized) {
-          console.error('AI service not initialized, returning opportunities without processing');
-          return opportunities;
-        }
+      // Ensure the service is initialized with proper await
+      const initialized = await this.initialize();
+      if (!initialized) {
+        console.error('AI service initialization failed, returning opportunities without processing');
+        return opportunities;
       }
 
       console.log(`Processing ${opportunities.length} opportunities with AI`);
       
-      // Process opportunities in batches to avoid overloading
-      const batchSize = 5;
+      // Process opportunities in smaller batches to prevent overwhelming the API
+      const batchSize = 3; // Reduced batch size to prevent rate limiting
       const batches = [];
       
       // Split into batches
@@ -915,39 +954,49 @@ class AIService {
         batches.push(opportunities.slice(i, i + batchSize));
       }
       
-      // Process each batch sequentially
+      // Process each batch sequentially to avoid race conditions
       const processedOpportunities = [];
       for (let i = 0; i < batches.length; i++) {
         console.log(`Processing batch ${i+1}/${batches.length}`);
         
-        // Process each opportunity in the batch in parallel
-        const batchResults = await Promise.all(batches[i].map(async opportunity => {
+        // Process each opportunity in the batch sequentially to prevent concurrent API calls
+        const batchResults = [];
+        for (const opportunity of batches[i]) {
           try {
             // Only process if not already processed
             if (opportunity.aiProcessed) {
-              return opportunity;
+              batchResults.push(opportunity);
+              continue;
             }
             
             // Analyze the opportunity
             const analysis = await this.analyzeOpportunity(opportunity);
             
             // Add analysis results to the opportunity
-            return {
+            batchResults.push({
               ...opportunity,
               relevanceScore: Math.round(analysis.relevance_score * 100),
               priority: analysis.priority,
               keyThemes: analysis.key_themes,
               aiProcessed: true,
               aiProcessedAt: new Date().toISOString()
-            };
+            });
+            
+            // Add small delay between requests to prevent rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
           } catch (error) {
             console.error(`Error processing opportunity: ${opportunity.title}`, error);
-            return opportunity;
+            batchResults.push(opportunity);
           }
-        }));
+        }
         
         // Add batch results to processed opportunities
         processedOpportunities.push(...batchResults);
+        
+        // Add delay between batches to prevent rate limiting
+        if (i < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
       
       console.log(`AI processing complete for ${processedOpportunities.length} opportunities`);
@@ -959,5 +1008,13 @@ class AIService {
   }
 }
 
+// Create singleton instance
+const aiService = new AIService();
+
+// Export for ES6 modules
+export { aiService };
+
 // Expose as global for Chrome Extension compatibility
-window.aiService = new AIService();
+if (typeof window !== 'undefined') {
+  window.aiService = aiService;
+}

@@ -2,6 +2,9 @@
  * KeywordManager - Manages keyword groups for opportunity matching
  * Allows externalized configuration of keywords and weights
  */
+
+// Import dependencies
+import { logManager } from './logger.js';
 class KeywordManager {
   constructor() {
     // Storage key for persisting keyword groups
@@ -354,6 +357,13 @@ class KeywordManager {
   }
 }
 
-// Create a singleton instance and assign to window global for Chrome Extension CSP compliance
+// Create a singleton instance
 const keywordManager = new KeywordManager();
-window.keywordManager = keywordManager;
+
+// Export for ES6 modules
+export { keywordManager };
+
+// Assign to window global for Chrome Extension CSP compliance
+if (typeof window !== 'undefined') {
+  window.keywordManager = keywordManager;
+}

@@ -4,6 +4,11 @@
  * Implements logistic regression with feature extraction from opportunities
  */
 
+// Import dependencies
+import { logManager } from './logger.js';
+import { keywordManager } from './keywordManager.js';
+import { aiService } from './aiService.js';
+
 class OpportunityClassifier {
   constructor(aiService) {
     // Reference to AIService for getting embeddings
@@ -351,5 +356,10 @@ class OpportunityClassifier {
   }
 }
 
-// Export the classifier
-window.OpportunityClassifier = OpportunityClassifier;
+// Export for ES6 modules
+export { OpportunityClassifier };
+
+// Export the classifier to window for Chrome Extension compatibility
+if (typeof window !== 'undefined') {
+  window.OpportunityClassifier = OpportunityClassifier;
+}

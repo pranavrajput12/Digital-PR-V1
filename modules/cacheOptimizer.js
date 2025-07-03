@@ -4,6 +4,23 @@
  * Implements memory usage tracking and automatic cleanup when thresholds are exceeded
  */
 
+// Initialize logger reference
+let logManager = null;
+if (typeof window !== 'undefined' && window.logManager) {
+  logManager = window.logManager;
+}
+
+// Logging helper function
+function log(level, message, data) {
+  if (logManager && typeof logManager[level] === 'function') {
+    logManager[level](`[CacheOptimizer] ${message}`, data);
+  } else {
+    // Fallback to console
+    const consoleMethod = console[level] || console.log;
+    consoleMethod(`[CacheOptimizer] ${message}`, data || '');
+  }
+}
+
 // Define the cache optimizer object
 const cacheOptimizer = (() => {
   // Internal state
@@ -41,7 +58,7 @@ const cacheOptimizer = (() => {
 
   // Start memory monitoring
   function startMonitoring() {
-    console.log('Starting memory monitoring service');
+    log('log', 'Starting memory monitoring service');
     
     // Prevent multiple intervals
     if (state.monitoringInterval) {
@@ -64,7 +81,7 @@ const cacheOptimizer = (() => {
 
   // Stop memory monitoring
   function stopMonitoring() {
-    console.log('Stopping memory monitoring service');
+    log('log', 'Stopping memory monitoring service');
     state.monitoringEnabled = false;
     
     if (state.monitoringInterval) {
@@ -114,7 +131,7 @@ const cacheOptimizer = (() => {
         }
         
         // Log current memory usage
-        console.log(`Current memory usage: ${Math.round(usedHeapSize)}MB`);
+        log('log', `Current memory usage: ${Math.round(usedHeapSize)}MB`);
         
         // Check against thresholds
         checkThresholds(usedHeapSize);
@@ -136,7 +153,7 @@ const cacheOptimizer = (() => {
         }
         
         // Log estimated memory usage
-        console.log(`Estimated memory usage: ${Math.round(memoryEstimate)}MB (limited accuracy)`);
+        log('log', `Estimated memory usage: ${Math.round(memoryEstimate)}MB (limited accuracy)`);
         
         // Store for tracking
         state.lastMemoryUsage = memoryEstimate;
@@ -158,7 +175,7 @@ const cacheOptimizer = (() => {
         return memoryEstimate;
       }
     } catch (error) {
-      console.error('Error checking memory usage:', error);
+      log('error', 'Error checking memory usage:', error);
       return 0;
     }
   }
@@ -170,7 +187,7 @@ const cacheOptimizer = (() => {
     
     // Critical threshold breach
     if (memoryUsage >= state.memoryCriticalThreshold) {
-      console.warn(`CRITICAL MEMORY USAGE: ${Math.round(memoryUsage)}MB exceeds critical threshold of ${state.memoryCriticalThreshold}MB`);
+      log('warn', `CRITICAL MEMORY USAGE: ${Math.round(memoryUsage)}MB exceeds critical threshold of ${state.memoryCriticalThreshold}MB`);
       
       // Notify listeners
       notifyListeners('critical', memoryUsage);
@@ -182,7 +199,7 @@ const cacheOptimizer = (() => {
     }
     // Warning threshold breach
     else if (memoryUsage >= state.memoryWarningThreshold) {
-      console.warn(`WARNING: Memory usage (${Math.round(memoryUsage)}MB) exceeds warning threshold of ${state.memoryWarningThreshold}MB`);
+      log('warn', `WARNING: Memory usage (${Math.round(memoryUsage)}MB) exceeds warning threshold of ${state.memoryWarningThreshold}MB`);
       
       // Notify listeners
       notifyListeners('warning', memoryUsage);
@@ -194,7 +211,7 @@ const cacheOptimizer = (() => {
     }
     // Normal usage but rapid increase
     else if (trend === 'rapidly_increasing' && !state.cleanupRunning) {
-      console.warn(`WARNING: Rapidly increasing memory usage detected (currently ${Math.round(memoryUsage)}MB)`);
+      log('warn', `WARNING: Rapidly increasing memory usage detected (currently ${Math.round(memoryUsage)}MB)`);
       
       // Notify listeners
       notifyListeners('increasing', memoryUsage);
@@ -254,7 +271,7 @@ const cacheOptimizer = (() => {
           }
         });
       } catch (error) {
-        console.error('Error in memory listener callback:', error);
+        log('error', 'Error in memory listener callback:', error);
       }
     });
   }
@@ -263,7 +280,7 @@ const cacheOptimizer = (() => {
   function performEmergencyCleanup() {
     if (state.cleanupRunning) return;
     
-    console.warn('Performing EMERGENCY memory cleanup');
+    log('warn', 'Performing EMERGENCY memory cleanup');
     state.cleanupRunning = true;
     
     try {
@@ -288,7 +305,7 @@ const cacheOptimizer = (() => {
         }
       }
     } catch (error) {
-      console.error('Error during emergency cleanup:', error);
+      log('error', 'Error during emergency cleanup:', error);
     } finally {
       state.cleanupRunning = false;
       
@@ -301,7 +318,7 @@ const cacheOptimizer = (() => {
   function performPreventiveCleanup() {
     if (state.cleanupRunning) return;
     
-    console.warn('Performing preventive memory cleanup');
+    log('warn', 'Performing preventive memory cleanup');
     state.cleanupRunning = true;
     
     try {
@@ -321,7 +338,7 @@ const cacheOptimizer = (() => {
         }
       }
     } catch (error) {
-      console.error('Error during preventive cleanup:', error);
+      log('error', 'Error during preventive cleanup:', error);
     } finally {
       state.cleanupRunning = false;
       
@@ -334,7 +351,7 @@ const cacheOptimizer = (() => {
   function performLightCleanup() {
     if (state.cleanupRunning) return;
     
-    console.log('Performing light memory cleanup');
+    log('log', 'Performing light memory cleanup');
     state.cleanupRunning = true;
     
     try {
@@ -351,7 +368,7 @@ const cacheOptimizer = (() => {
         }
       }
     } catch (error) {
-      console.error('Error during light cleanup:', error);
+      log('error', 'Error during light cleanup:', error);
     } finally {
       state.cleanupRunning = false;
     }
@@ -370,7 +387,7 @@ const cacheOptimizer = (() => {
         try {
           localStorage.removeItem(key);
         } catch (e) {
-          console.error(`Error clearing localStorage cache for ${key}:`, e);
+          log('error', `Error clearing localStorage cache for ${key}:`, e);
         }
       });
       
@@ -379,14 +396,14 @@ const cacheOptimizer = (() => {
         const keysToRemove = Object.keys(result);
         if (keysToRemove.length > 0) {
           chrome.storage.local.remove(keysToRemove, () => {
-            console.log('Cleared cache keys from Chrome storage:', keysToRemove);
+            log('log', 'Cleared cache keys from Chrome storage:', keysToRemove);
           });
         }
       });
       
-      console.log('All caches cleared successfully');
+      log('log', 'All caches cleared successfully');
     } catch (error) {
-      console.error('Error clearing all caches:', error);
+      log('error', 'Error clearing all caches:', error);
     }
   }
 
@@ -403,13 +420,13 @@ const cacheOptimizer = (() => {
         try {
           localStorage.removeItem(key);
         } catch (e) {
-          console.error(`Error clearing localStorage cache for ${key}:`, e);
+          log('error', `Error clearing localStorage cache for ${key}:`, e);
         }
       });
       
-      console.log('Non-essential caches cleared successfully');
+      log('log', 'Non-essential caches cleared successfully');
     } catch (error) {
-      console.error('Error clearing non-essential caches:', error);
+      log('error', 'Error clearing non-essential caches:', error);
     }
   }
 
@@ -440,10 +457,246 @@ const cacheOptimizer = (() => {
   };
 })();
 
+// Storage Cache Implementation
+const storageCache = (() => {
+  const cache = new Map();
+  const ttls = new Map();
+  const invalidationCallbacks = new Map();
+  
+  // Default TTL values (in minutes)
+  const DEFAULT_TTLS = {
+    'settings': 10,
+    'azureOpenAISettings': 10,
+    'sourceBottleOpportunities': 2,
+    'qwotedOpportunities': 2,
+    'opportunities': 2,
+    'featuredOpportunities': 2,
+    'uiPreferences': 15,
+    'filterStates': 5
+  };
+  
+  // Get data from cache or storage
+  async function get(key, ttlMinutes = null) {
+    try {
+      // Check cache first
+      const cached = cache.get(key);
+      const expiry = ttls.get(key);
+      
+      if (cached !== undefined && Date.now() < expiry) {
+        return cached;
+      }
+      
+      // Cache miss - fetch from storage
+      return new Promise((resolve) => {
+        chrome.storage.local.get([key], (result) => {
+          if (chrome.runtime.lastError) {
+            log('error', 'Storage error:', chrome.runtime.lastError);
+            resolve(undefined);
+            return;
+          }
+          
+          const data = result[key];
+          const ttl = ttlMinutes || DEFAULT_TTLS[key] || 5;
+          
+          // Update cache
+          cache.set(key, data);
+          ttls.set(key, Date.now() + (ttl * 60 * 1000));
+          
+          resolve(data);
+        });
+      });
+    } catch (error) {
+      log('error', 'Cache get error:', error);
+      return undefined;
+    }
+  }
+  
+  // Set data in both cache and storage
+  async function set(key, value, ttlMinutes = null) {
+    try {
+      // Update storage
+      return new Promise((resolve) => {
+        chrome.storage.local.set({ [key]: value }, () => {
+          if (chrome.runtime.lastError) {
+            log('error', 'Storage set error:', chrome.runtime.lastError);
+            resolve(false);
+            return;
+          }
+          
+          const ttl = ttlMinutes || DEFAULT_TTLS[key] || 5;
+          
+          // Update cache
+          cache.set(key, value);
+          ttls.set(key, Date.now() + (ttl * 60 * 1000));
+          
+          // Trigger invalidation callbacks
+          const callbacks = invalidationCallbacks.get(key);
+          if (callbacks) {
+            callbacks.forEach(callback => {
+              try {
+                callback(key, value);
+              } catch (error) {
+                log('error', 'Invalidation callback error:', error);
+              }
+            });
+          }
+          
+          resolve(true);
+        });
+      });
+    } catch (error) {
+      log('error', 'Cache set error:', error);
+      return false;
+    }
+  }
+  
+  // Get multiple keys efficiently
+  async function getMultiple(keys, ttlMinutes = null) {
+    try {
+      const results = {};
+      const missingKeys = [];
+      
+      // Check cache for each key
+      for (const key of keys) {
+        const cached = cache.get(key);
+        const expiry = ttls.get(key);
+        
+        if (cached !== undefined && Date.now() < expiry) {
+          results[key] = cached;
+        } else {
+          missingKeys.push(key);
+        }
+      }
+      
+      // Fetch missing keys from storage
+      if (missingKeys.length > 0) {
+        return new Promise((resolve) => {
+          chrome.storage.local.get(missingKeys, (result) => {
+            if (chrome.runtime.lastError) {
+              log('error', 'Storage getMultiple error:', chrome.runtime.lastError);
+              resolve(results);
+              return;
+            }
+            
+            // Update cache for fetched keys
+            for (const key of missingKeys) {
+              const data = result[key];
+              const ttl = ttlMinutes || DEFAULT_TTLS[key] || 5;
+              
+              results[key] = data;
+              cache.set(key, data);
+              ttls.set(key, Date.now() + (ttl * 60 * 1000));
+            }
+            
+            resolve(results);
+          });
+        });
+      }
+      
+      return results;
+    } catch (error) {
+      log('error', 'Cache getMultiple error:', error);
+      return {};
+    }
+  }
+  
+  // Invalidate cache entry
+  function invalidate(key) {
+    cache.delete(key);
+    ttls.delete(key);
+  }
+  
+  // Clear all cache entries
+  function clear() {
+    cache.clear();
+    ttls.clear();
+  }
+  
+  // Add invalidation callback
+  function onInvalidate(key, callback) {
+    if (!invalidationCallbacks.has(key)) {
+      invalidationCallbacks.set(key, []);
+    }
+    invalidationCallbacks.get(key).push(callback);
+  }
+  
+  // Remove expired entries
+  function cleanExpired() {
+    const now = Date.now();
+    const expiredKeys = [];
+    
+    for (const [key, expiry] of ttls.entries()) {
+      if (now >= expiry) {
+        expiredKeys.push(key);
+      }
+    }
+    
+    expiredKeys.forEach(key => {
+      cache.delete(key);
+      ttls.delete(key);
+    });
+    
+    return expiredKeys.length;
+  }
+  
+  // Get cache statistics
+  function getStats() {
+    const now = Date.now();
+    const expired = Array.from(ttls.entries()).filter(([key, expiry]) => now >= expiry).length;
+    
+    return {
+      size: cache.size,
+      expired: expired,
+      keys: Array.from(cache.keys()),
+      memoryUsage: JSON.stringify(Object.fromEntries(cache)).length
+    };
+  }
+  
+  // Start cleanup interval
+  let cleanupInterval;
+  function startCleanup(intervalMinutes = 5) {
+    if (cleanupInterval) {
+      clearInterval(cleanupInterval);
+    }
+    
+    cleanupInterval = setInterval(() => {
+      const cleaned = cleanExpired();
+      if (cleaned > 0) {
+        log('log', `Cleaned ${cleaned} expired cache entries`);
+      }
+    }, intervalMinutes * 60 * 1000);
+  }
+  
+  // Stop cleanup interval
+  function stopCleanup() {
+    if (cleanupInterval) {
+      clearInterval(cleanupInterval);
+      cleanupInterval = null;
+    }
+  }
+  
+  return {
+    get,
+    set,
+    getMultiple,
+    invalidate,
+    clear,
+    onInvalidate,
+    cleanExpired,
+    getStats,
+    startCleanup,
+    stopCleanup
+  };
+})();
+
 // Expose as window global
 window.cacheOptimizer = cacheOptimizer;
+window.storageCache = storageCache;
+
+// Start storage cache cleanup
+storageCache.startCleanup();
 
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = cacheOptimizer;
+  module.exports = { cacheOptimizer, storageCache };
 }
